@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.21022</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{FA15FC26-A7E7-4932-93B7-65FAE6D5DD33}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AssemblyName>MonoDevelop.Debugger.Gdb.D</AssemblyName>
+    <RootNamespace>MonoDevelop.Debugger</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>build</OutputPath>
+    <DefineConstants>DEBUG</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <Execution>
+      <Execution clr-version="Net_2_0" />
+    </Execution>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>none</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>build</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <Execution>
+      <Execution clr-version="Net_2_0" />
+    </Execution>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="MonoDevelop.Core, Version=1.9.2.0, Culture=neutral">
+      <SpecificVersion>False</SpecificVersion>
+      <Package>monodevelop</Package>
+    </Reference>
+    <Reference Include="MonoDevelop.Ide, Version=1.9.2.0, Culture=neutral">
+      <SpecificVersion>False</SpecificVersion>
+      <Package>monodevelop</Package>
+    </Reference>
+    <Reference Include="Mono.TextEditor, Version=1.0.0.0, Culture=neutral">
+      <Package>monodevelop</Package>
+    </Reference>
+    <Reference Include="Mono.Posix" />
+    <Reference Include="Mono.Cecil, Version=0.6.8.8607, Culture=neutral">
+      <Package>monodevelop</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.XmlEditor, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.AspNet, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Gettext, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Deployment, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Deployment.Linux, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.GtkCore, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.DesignerSupport, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.VBNetBinding, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.CBinding, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.CSharpBinding, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Autotools, Version=2.0.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.SourceEditor2, Version=2.1.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Debugger, Version=2.1.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Refactoring, Version=2.1.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="MonoDevelop.Debugger.Soft, Version=2.2.0.0, Culture=neutral">
+      <Package>monodevelop-core-addins</Package>
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="Mono.Debugging, Version=0.0.0.0, Culture=neutral, PublicKeyToken=5e9ce85b0923c84f">
+      <Package>monodevelop</Package>
+    </Reference>
+    <Reference Include="Mono.Debugging.Soft, Version=0.0.0.0, Culture=neutral, PublicKeyToken=5e9ce85b0923c84f">
+      <Package>monodevelop-core-addins</Package>
+    </Reference>
+    <Reference Include="Mono.Debugger.Soft, Version=0.0.0.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756">
+      <Package>monodevelop-core-addins</Package>
+    </Reference>
+    <Reference Include="MonoDevelop.NUnit, Version=2.6.0.0, Culture=neutral">
+      <Private>False</Private>
+      <Package>/home/llucenic/work/git/monodevelop/main/build/AddIns/NUnit/MonoDevelop.NUnit.dll</Package>
+    </Reference>
+    <Reference Include="MonoDevelop.VersionControl, Version=2.6.0.0, Culture=neutral">
+      <Private>False</Private>
+      <Package>/home/llucenic/work/git/monodevelop/main/build/AddIns/VersionControl/MonoDevelop.VersionControl.dll</Package>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="D_Parser">
+      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath>
+    </Reference>
+    <Reference Include="MonoDevelop.D">
+      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory">
+      <HintPath>..\Mono-D\ext\ICSharpCode.NRefactory.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="MonoDevelop.D\DGdbSession.cs" />
+    <Compile Include="MonoDevelop.D\DGdbSessionFactory.cs" />
+    <Compile Include="MonoDevelop.D\AssemblyInfo.cs" />
+    <Compile Include="MonoDevelop.D\DGdbBacktrace.cs" />
+    <Compile Include="MonoDevelop.D\DGdbCommandResult.cs" />
+    <Compile Include="CommandStatus.cs" />
+    <Compile Include="GdbBacktrace.cs" />
+    <Compile Include="GdbCommandResult.cs" />
+    <Compile Include="GdbEvent.cs" />
+    <Compile Include="GdbSession.cs" />
+    <Compile Include="GdbSessionFactory.cs" />
+    <Compile Include="ResultData.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="MonoDevelop.D\Manifest.addin.xml" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ProjectExtensions>
+    <MonoDevelop>
+      <Properties>
+        <Deployment.LinuxDeployData generatePcFile="false" />
+      </Properties>
+    </MonoDevelop>
+  </ProjectExtensions>
+  <ItemGroup>
+    <Folder Include="MonoDevelop.D\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.txt" />
+  </ItemGroup>
+</Project>
