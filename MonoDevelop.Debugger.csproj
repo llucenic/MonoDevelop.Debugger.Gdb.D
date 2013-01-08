@@ -167,7 +167,4 @@
   <ItemGroup>
     <Folder Include="MonoDevelop.D\" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="README.txt" />
-  </ItemGroup>
 </Project>
