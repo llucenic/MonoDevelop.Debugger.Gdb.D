@@ -178,7 +178,7 @@ namespace MonoDevelop.Debugger.Gdb
 			sin = proc.StandardInput;
 			
 			thread = new Thread (OutputInterpreter);
-			thread.Name = "GDB output interpeter";
+			thread.Name = "GDB output interpreter";
 			thread.IsBackground = true;
 			thread.Start ();
 		}

@@ -120,14 +120,6 @@
     <Reference Include="Mono.Debugger.Soft, Version=0.0.0.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756">
       <Package>monodevelop-core-addins</Package>
     </Reference>
-    <Reference Include="MonoDevelop.NUnit, Version=2.6.0.0, Culture=neutral">
-      <Private>False</Private>
-      <Package>/home/llucenic/work/git/monodevelop/main/build/AddIns/NUnit/MonoDevelop.NUnit.dll</Package>
-    </Reference>
-    <Reference Include="MonoDevelop.VersionControl, Version=2.6.0.0, Culture=neutral">
-      <Private>False</Private>
-      <Package>/home/llucenic/work/git/monodevelop/main/build/AddIns/VersionControl/MonoDevelop.VersionControl.dll</Package>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="D_Parser">
       <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath>

@@ -43,9 +43,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 {
 	class DGdbSession : GdbSession
 	{
-		public DGdbCommandResult DRunCommand (string command, params string[] args)
+		string lastDCommand;
+		bool isMultiLine;
+		object commandLock = new object ();
+
+		public string DRunCommand (string command, params string[] args)
 		{
-			return RunCommand(command, args) as DGdbCommandResult;
+			GdbCommandResult res;
+			isMultiLine = false;
+			lock (commandLock) {
+				lastDCommand = command + " " + string.Join (" ", args);
+				res = RunCommand(command, args);
+				Monitor.PulseAll (commandLock);
+			}
+			//return res != null ? res.GetObject ("value") : "";
+			return res.GetValue("value");
 		}
 
 		protected override void ProcessOutput (string line)
@@ -55,6 +67,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			switch (line [0]) {
 				case '^':
 					lock (syncLock) {
+						// added cast to DGdbCommandResult
 						lastResult = new DGdbCommandResult (line);
 						running = (lastResult.Status == CommandStatus.Running);
 						Monitor.PulseAll (syncLock);
@@ -68,6 +81,20 @@ namespace MonoDevelop.Debugger.Gdb.D
 					ThreadPool.QueueUserWorkItem (delegate {
 						OnTargetOutput (false, line + "\n");
 					});
+					// added custom handling for D specific inquires
+					if (line == lastDCommand) {
+						isMultiLine = true;
+					}
+					else if (isMultiLine == true) {
+						// echoed command
+						lock (syncLock) {
+							lastResult = new DGdbCommandResult (line);
+							string[] spl = line.Split (new char[]{':','"'});
+							if (spl.Length > 2) (lastResult as DGdbCommandResult).SetProperty("value", spl[2]);
+							running = (lastResult.Status == CommandStatus.Running);
+							Monitor.PulseAll (syncLock);
+						}
+					}
 					break;
 					
 				case '*':

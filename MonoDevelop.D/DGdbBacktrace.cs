@@ -1,10 +1,8 @@
-// GdbBacktrace.cs
+// DGdbBacktrace.cs
 //
-// Authors: Lluis Sanchez Gual <lluis@novell.com>
-//          Jeffrey Stedfast <jeff@xamarin.com>
+// Author:
+//   Ludovit Lucenic <llucenic@gmail.com>
 //
-// Copyright (c) 2008 Novell, Inc (http://www.novell.com)
-// Copyright (c) 2012 Xamarin Inc. (http://www.xamarin.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -13,8 +11,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// This permission notice shall be included in all copies or substantial portions
+// of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -65,7 +63,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			try {
 				session.SelectThread (threadId);
 				exp = exp.Replace ("\"", "\\\"");
-				DGdbCommandResult res = DSession.DRunCommand ("-var-create", "-", "*", "\"" + exp + "\"");
+				DGdbCommandResult res = DSession.RunCommand ("-var-create", "-", "*", "\"" + exp + "\"") as DGdbCommandResult;
 				string vname = res.GetValue ("name");
 				session.RegisterTempVariableObject (vname);
 
@@ -93,43 +91,54 @@ namespace MonoDevelop.Debugger.Gdb.D
 				if (at is DSymbol) {
 					DSymbol ds = at as DSymbol;
 					try {
-						DGdbCommandResult pRes = DSession.DRunCommand ("print", exp);
-						DGdbCommandResult xRes = DSession.DRunCommand ("x", exp);
-						DGdbCommandResult sRes = DSession.DRunCommand ("x/s", "*((unsigned long[2])" + exp + "+1)");
-						DGdbCommandResult dRes = DSession.DRunCommand ("x/s", "*(**(unsigned long)" + exp + "+0x14)");
+						//DGdbCommandResult pRes = DSession.DRunCommand ("print", exp);
+						//DGdbCommandResult xRes = DSession.DRunCommand ("x", exp);
+
+						if (ds.Base is PrimitiveType) {
+							// primitive type
+						}
+						else if (ds.Base is TemplateIntermediateType) {
+							// instance of class or interface
+							// read out the dynamic type of an object instance
+							string cRes = DSession.DRunCommand ("x/s", "*(**(unsigned long)" + exp + "+0x14)");
+							string iRes = DSession.DRunCommand ("x/s", "*(*(unsigned long)" + exp + "+0x14+0x14)");
+							typ = iRes;
+						}
+						else if (ds.Base is ArrayType) {
+							// simple array (indexed by int)
+							// read out as a char[] (string)
+							res.SetProperty("value", "\"" + DSession.DRunCommand ("x/s", "*((unsigned long[2])" + exp + "+1)") + "\"");
+							if (ds.Base.ToString().Equals("immutable(char)[]")) typ = "string";
+						}
+						else if (ds.Base is AssocArrayType) {
+							// associative array
+						}
+						if (ds.Base != null && typ == null) typ = ds.Base.ToString();
+
 					}
 					catch (Exception e) {
+						// just for debugging purposes
 						Exception e2 = e;
 						typ = typ;
 					}
-
-					if (ds.Base is PrimitiveType) {
-						// primitive type
-					}
-					else if (ds.Base is TemplateIntermediateType) {
-						// instance of class or interface
-					}
-					else if (ds.Base is D_Parser.Resolver.ArrayType) {
-						// simple array (indexed by int)
-					}
-					else if (ds.Base is AssocArrayType) {
-						// associative array
-					}
-					if (ds.Base != null) typ += " " + ds.Base.ToString();
 				}
+
+				// following code serves for static type resolution
 				if (curBlock is DMethod) {
+					// resolve function parameters
 					foreach (INode decl in (curBlock as DMethod).Parameters) {
 						if (decl.Name.Equals (exp)) {
-							res.SetProperty("type", typ == null ? decl.Type.ToString() : typ);
+							res.SetProperty("type", typ ?? decl.Type.ToString ());
 							isParam = true;
 							break;
 						}
 					}
 				}
 				if (isParam == false && curStmt is BlockStatement) {
+					// resolve local variables
 					foreach (INode decl in (curStmt as BlockStatement).Declarations) {
 						if (decl.Name.Equals (exp)) {
-							res.SetProperty("type", typ == null ? decl.Type.ToString() : typ);
+							res.SetProperty("type", typ ?? decl.Type.ToString ());
 							break;
 						}
 					}

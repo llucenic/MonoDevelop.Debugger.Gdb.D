@@ -1,0 +1,3 @@
+[submodule "Mono-D"]
+	path = Mono-D
+	url = https://github.com/aBothe/Mono-D.git
