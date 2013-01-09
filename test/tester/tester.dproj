@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{7D18DD47-6D03-4EBA-B915-305994612558}</ProjectGuid>
+    <UseDefaultCompiler>true</UseDefaultCompiler>
+    <IncrementalLinking>true</IncrementalLinking>
+    <BaseDirectory>.</BaseDirectory>
+    <PreferOneStepBuild>true</PreferOneStepBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debug</OutputPath>
+    <UnittestMode>false</UnittestMode>
+    <ObjectsDirectory>obj/Debug</ObjectsDirectory>
+    <DebugLevel>0</DebugLevel>
+    <Externalconsole>true</Externalconsole>
+    <Target>Executable</Target>
+    <OutputName>tester</OutputName>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release</OutputPath>
+    <UnittestMode>false</UnittestMode>
+    <ObjectsDirectory>obj/Release</ObjectsDirectory>
+    <DebugLevel>0</DebugLevel>
+    <Externalconsole>true</Externalconsole>
+    <Target>Executable</Target>
+    <OutputName>tester</OutputName>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Unittest|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Unittest</OutputPath>
+    <UnittestMode>true</UnittestMode>
+    <ObjectsDirectory>obj/Unittest</ObjectsDirectory>
+    <DebugLevel>0</DebugLevel>
+    <Externalconsole>true</Externalconsole>
+    <Target>Executable</Target>
+    <OutputName>tester</OutputName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="main.d" />
+  </ItemGroup>
+</Project>

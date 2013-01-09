@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{3947E667-4C90-4C3A-BEB9-7148D6FE0D7C}") = "tester", "tester\tester.dproj", "{7D18DD47-6D03-4EBA-B915-305994612558}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+		Unittest|Any CPU = Unittest|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7D18DD47-6D03-4EBA-B915-305994612558}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D18DD47-6D03-4EBA-B915-305994612558}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D18DD47-6D03-4EBA-B915-305994612558}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D18DD47-6D03-4EBA-B915-305994612558}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D18DD47-6D03-4EBA-B915-305994612558}.Unittest|Any CPU.ActiveCfg = Unittest|Any CPU
+		{7D18DD47-6D03-4EBA-B915-305994612558}.Unittest|Any CPU.Build.0 = Unittest|Any CPU
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		StartupItem = tester\tester.dproj
+	EndGlobalSection
+EndGlobal
