@@ -82,7 +82,7 @@ namespace MonoDevelop.Debugger.Gdb
 			return frames.ToArray ();
 		}
 
-		public ObjectValue[] GetLocalVariables (int frameIndex, EvaluationOptions options)
+		public virtual ObjectValue[] GetLocalVariables (int frameIndex, EvaluationOptions options)
 		{
 			List<ObjectValue> values = new List<ObjectValue> ();
 			SelectFrame (frameIndex);
@@ -94,7 +94,7 @@ namespace MonoDevelop.Debugger.Gdb
 			return values.ToArray ();
 		}
 
-		public ObjectValue[] GetParameters (int frameIndex, EvaluationOptions options)
+		public virtual ObjectValue[] GetParameters (int frameIndex, EvaluationOptions options)
 		{
 			List<ObjectValue> values = new List<ObjectValue> ();
 			SelectFrame (frameIndex);
@@ -290,7 +290,7 @@ namespace MonoDevelop.Debugger.Gdb
 			throw new NotSupportedException ();
 		}
 		
-		void SelectFrame (int frame)
+		protected void SelectFrame (int frame)
 		{
 			session.SelectThread (threadId);
 			if (frame != currentFrame) {

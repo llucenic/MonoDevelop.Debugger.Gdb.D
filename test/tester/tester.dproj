@@ -6,37 +6,37 @@
     <ProductVersion>10.0.0</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{7D18DD47-6D03-4EBA-B915-305994612558}</ProjectGuid>
-    <UseDefaultCompiler>true</UseDefaultCompiler>
-    <IncrementalLinking>true</IncrementalLinking>
+    <UseDefaultCompiler>True</UseDefaultCompiler>
+    <IncrementalLinking>True</IncrementalLinking>
     <BaseDirectory>.</BaseDirectory>
-    <PreferOneStepBuild>true</PreferOneStepBuild>
+    <PreferOneStepBuild>True</PreferOneStepBuild>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
+    <DebugSymbols>True</DebugSymbols>
     <OutputPath>bin\Debug</OutputPath>
-    <UnittestMode>false</UnittestMode>
+    <UnittestMode>False</UnittestMode>
     <ObjectsDirectory>obj/Debug</ObjectsDirectory>
     <DebugLevel>0</DebugLevel>
-    <Externalconsole>true</Externalconsole>
+    <Externalconsole>True</Externalconsole>
     <Target>Executable</Target>
     <OutputName>tester</OutputName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>bin\Release</OutputPath>
-    <UnittestMode>false</UnittestMode>
+    <UnittestMode>False</UnittestMode>
     <ObjectsDirectory>obj/Release</ObjectsDirectory>
     <DebugLevel>0</DebugLevel>
-    <Externalconsole>true</Externalconsole>
+    <Externalconsole>True</Externalconsole>
     <Target>Executable</Target>
     <OutputName>tester</OutputName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Unittest|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
+    <DebugSymbols>True</DebugSymbols>
     <OutputPath>bin\Unittest</OutputPath>
-    <UnittestMode>true</UnittestMode>
+    <UnittestMode>True</UnittestMode>
     <ObjectsDirectory>obj/Unittest</ObjectsDirectory>
     <DebugLevel>0</DebugLevel>
-    <Externalconsole>true</Externalconsole>
+    <Externalconsole>True</Externalconsole>
     <Target>Executable</Target>
     <OutputName>tester</OutputName>
   </PropertyGroup>
