@@ -122,13 +122,13 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="D_Parser">
-      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath>
+      <HintPath>Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.D">
-      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath>
+      <HintPath>Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath>
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
-      <HintPath>..\Mono-D\ext\ICSharpCode.NRefactory.dll</HintPath>
+      <HintPath>build\ICSharpCode.NRefactory.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

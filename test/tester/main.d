@@ -118,6 +118,8 @@ void declareIntegralArrays()
 	wchar[] WCHAR = [ 'Ľ', 'r', 'Ž' ];
 	dchar[] DCHAR = [ '\u20AC', 'ǵ', '⚤' ];
 	
+	short[][] SHORT2 = [ [ -1_234, 5_678 ], [ -7_856, 9_876 ] ];
+
 	// statement to stop on when debugging
 	BOOL[0] = true;
 	BOOL[1] = false;
