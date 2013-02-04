@@ -119,7 +119,7 @@ void declareIntegralArrays()
 	dchar[] DCHAR = [ '\u20AC', 'ǵ', '⚤' ];
 	
 	short[][] SHORT2 = [ [ -1_234, 5_678 ], [ -7_856, 9_876 ] ];
-	//immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];
+	immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];
 
 	// statement to stop on when debugging
 	BOOL[0] = true;

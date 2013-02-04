@@ -2,14 +2,12 @@
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
   <MonoDevelop.Ide.Workbench ActiveDocument="tester/main.d">
     <Files>
-      <File FileName="tester/main.d" Line="40" Column="5" />
+      <File FileName="tester/main.d" Line="71" Column="27" />
     </Files>
     <Pads>
       <Pad Id="ProjectPad">
-        <State expanded="True">
-          <Node name="tester" expanded="True">
-            <Node name="main.d" selected="True" />
-          </Node>
+        <State expanded="True" selected="True">
+          <Node name="tester" expanded="True" />
         </State>
       </Pad>
       <Pad Id="ClassPad">
@@ -29,6 +27,10 @@
     <BreakpointStore>
       <Breakpoint file="/home/llucenic/work/git/monodevelop/extras/MonoDevelop.Debugger.Gdb/GdbBacktrace.cs" line="90" />
       <Breakpoint file="/home/llucenic/work/workspace/monodevelop/debug/tester/main.d" line="39" />
+      <Breakpoint enabled="false" file="/home/llucenic/work/git/MonoDevelop.Debugger.Gdb.D/test/tester/main.d" line="145" />
+      <Breakpoint enabled="false" file="/home/llucenic/work/git/MonoDevelop.Debugger.Gdb.D/test/tester/main.d" line="157" />
+      <Breakpoint file="/home/llucenic/work/git/MonoDevelop.Debugger.Gdb.D/test/tester/main.d" line="125" />
+      <Breakpoint file="/home/llucenic/work/git/MonoDevelop.Debugger.Gdb.D/test/tester/main.d" line="74" />
     </BreakpointStore>
   </MonoDevelop.Ide.DebuggingService.Breakpoints>
   <MonoDevelop.Ide.DebuggingService.PinnedWatches />

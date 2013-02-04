@@ -143,7 +143,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			char[] chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), 1);
 			if ((uint)chars[0] == 0xFFFD) {
 				// code point is wider than 1 byte
-				chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), 2);
+				chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), i+2 > array.Length ? 1 : 2);
 				if ((uint)chars[0] == 0xFFFD) {
 					// code point was already in previous char
 					return "(skipped code point)";

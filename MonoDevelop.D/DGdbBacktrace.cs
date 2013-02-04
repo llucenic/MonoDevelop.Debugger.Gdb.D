@@ -198,9 +198,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
 			try {
-				IdentifierExpression identifierExp = new IdentifierExpression(exp);
+				/*IdentifierExpression identifierExp = new IdentifierExpression(exp);
 				identifierExp.Location = identifierExp.EndLocation = codeLocation;
-				AbstractType at = Evaluation.EvaluateType(identifierExp, resolutionCtx);
+				AbstractType at = Evaluation.EvaluateType(identifierExp, resolutionCtx);*/
+				AbstractType at = TypeDeclarationResolver.ResolveSingle(exp, resolutionCtx, null);
 
 				string type = null;
 

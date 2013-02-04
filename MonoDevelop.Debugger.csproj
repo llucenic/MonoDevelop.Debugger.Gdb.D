@@ -128,7 +128,7 @@
       <HintPath>Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath>
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
-      <HintPath>build\ICSharpCode.NRefactory.dll</HintPath>
+      <HintPath>Mono-D\ext\ICSharpCode.NRefactory.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
