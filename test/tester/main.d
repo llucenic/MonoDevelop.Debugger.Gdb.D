@@ -28,7 +28,7 @@ class Descendant : Ancestor
 class NextDescendant : Descendant
 {
 	int* ip;
-	this(ref int ri) { super(-1); this.ip = &ri; }
+	this(ref int ri) { super(ri-7); this.ip = &ri; }
 	long furtherMethod() { r = 7; return 87L; }
 }
 
@@ -119,6 +119,7 @@ void declareIntegralArrays()
 	dchar[] DCHAR = [ '\u20AC', 'ǵ', '⚤' ];
 	
 	short[][] SHORT2 = [ [ -1_234, 5_678 ], [ -7_856, 9_876 ] ];
+	//immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];
 
 	// statement to stop on when debugging
 	BOOL[0] = true;

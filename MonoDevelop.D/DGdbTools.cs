@@ -141,6 +141,18 @@ namespace MonoDevelop.Debugger.Gdb.D
 		static string GetCharValue (byte[] array, uint i, uint itemSize)
 		{
 			char[] chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), 1);
+			if ((uint)chars[0] == 0xFFFD) {
+				// code point is wider than 1 byte
+				chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), 2);
+				if ((uint)chars[0] == 0xFFFD) {
+					// code point was already in previous char
+					return "(skipped code point)";
+				}
+				else {
+					// code point is resolved correctly
+					return FormatCharValue(chars[0], (uint)chars[0], itemSize) + " (multi-code point)";
+				}
+			}
 			return FormatCharValue(chars[0], (uint)chars[0], itemSize);
 		}
 		static string GetWcharValue(byte[] array, uint i, uint itemSize)

@@ -119,11 +119,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				session.SelectThread(threadId);
 				exp = exp.Replace("\"", "\\\"");
 				DGdbCommandResult res = DSession.RunCommand("-var-create", "-", "*", "\"" + exp + "\"") as DGdbCommandResult;
-				DGdbCommandResult resAddr = DSession.RunCommand("-var-create", "-", "*", "\"&" + exp + "\"") as DGdbCommandResult;
+				//DGdbCommandResult resAddr = DSession.RunCommand("-var-create", "-", "*", "\"&" + exp + "\"") as DGdbCommandResult;
 				string vname = res.GetValue("name");
 				session.RegisterTempVariableObject(vname);
 
-				return CreateObjectValue(exp, AdaptVarObjectForD(exp, res, resAddr.GetValue("value")));
+				return CreateObjectValue(exp, AdaptVarObjectForD(exp, res/*, resAddr.GetValue("value")*/));
 			}
 			catch {
 				return ObjectValue.CreateUnknown(exp);
@@ -144,18 +144,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 					}
 				}
 			}
-			if (isParam == false && curStmt is BlockStatement) {
-				// resolve local variables
-				foreach (INode decl in (curStmt as BlockStatement).Declarations) {
-					if (decl.Name.Equals(exp)) {
-						res.SetProperty("type", dynamicType ?? decl.Type.ToString());
-						break;
-					}
-				}
+			if (isParam == false) {
+				DSymbol ds = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null) as DSymbol;
+				res.SetProperty("type", dynamicType ?? ds.Definition.Type.ToString());
 			}
 		}
 
-		byte[] ReadArrayBytes(string exp, uint itemSize, out uint arrayLength)
+		const uint arrayHeaderSize = 2;
+
+		uint[] ReadArrayHeader(string exp)
 		{
 			// read out array length and memory location (stored as two unsigned longs)
 			String rmExp = "\"(unsigned long[])(" + exp + ")\"";
@@ -164,22 +161,32 @@ namespace MonoDevelop.Debugger.Gdb.D
 			//	b	item size (1 byte, 2 word, 4 long)
 			//	c	number of rows in the output result
 			//	d	number of columns in a row of the output result
-			String rmParam = "u 4 1 2";
-			GdbCommandResult aRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
+			String rmParam = String.Format("u {0} 1 {1}", sizeof(uint), arrayHeaderSize);
+			GdbCommandResult lRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
 
-			String sArrayAddress = aRes.GetObject("memory").GetObject(0).GetObject("data").GetValue(1);
-			String sArrayLength = aRes.GetObject("memory").GetObject(0).GetObject("data").GetValue(0);
+			uint[] result = new uint[arrayHeaderSize];
+			for (int i = 0; i < arrayHeaderSize; i++) {
+				result[i] = uint.Parse(lRes.GetObject("memory").GetObject(0).GetObject("data").GetValue(i));
+			}
 
-			arrayLength = uint.Parse(sArrayLength);
+			return result;
+		}
+
+		byte[] ReadArrayBytes(string exp, uint itemSize, out uint arrayLength)
+		{
+			// read header
+			uint[] header = ReadArrayHeader(exp);
+
+			arrayLength = header[0];
 			uint lLength = arrayLength * itemSize;
 
 			// read out the actual array bytes
-			rmExp = sArrayAddress;
-			rmParam = String.Format("{0} {1} {2} {3}", 'u', 1, 1, lLength);
-			aRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
+			String rmExp = header[1].ToString();
+			String rmParam = String.Format("{0} {1} {2} {3}", 'u', sizeof(byte), 1, lLength);
+			GdbCommandResult lRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
 
 			// convert raw data to bytes
-			ResultData rd = aRes.GetObject("memory").GetObject(0).GetObject("data");
+			ResultData rd = lRes.GetObject("memory").GetObject(0).GetObject("data");
 			byte[] lBytes = new byte[lLength];
 			for (int i = 0; i < lLength; i++) {
 				lBytes[i] = byte.Parse(rd.GetValue(i));
@@ -188,7 +195,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lBytes;
 		}
 
-		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res, string expAddr = null)
+		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
 			try {
 				IdentifierExpression identifierExp = new IdentifierExpression(exp);
@@ -272,6 +279,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 		void AdaptArrayForD(ArrayType arrayType, string exp, ref DGdbCommandResult res)
 		{
 			AbstractType itemType = arrayType.ValueType;
+			uint lArrayLength = 0;
+
 			if (itemType is PrimitiveType) {
 				byte lArrayType = (itemType as PrimitiveType).TypeToken;
 
@@ -279,7 +288,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 				lItemSize = DGdbTools.SizeOf(lArrayType);
 
 				// read in raw array bytes
-				uint lArrayLength = 0;
 				byte[] lBytes = ReadArrayBytes(exp, lItemSize, out lArrayLength);
 				int lLength = lBytes.Length;
 
@@ -292,13 +300,38 @@ namespace MonoDevelop.Debugger.Gdb.D
 				                       dcharString.Length, lLength, dcharString);
 				 */
 
-				CreateObjectValuesForPrimitiveArray(ref res, lArrayType, lArrayLength, arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
+				res.SetProperty("has_more", "1");
+				res.SetProperty("numchild", lArrayLength.ToString());
+				res.SetProperty("children", CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength, arrayType.TypeDeclarationOf as ArrayDecl, lBytes));
 
 				res.SetProperty("value", lValue);
 			}
+			else if (itemType is ArrayType) {
+				// read in array header information (item count and address)
+				uint[] lHeader = ReadArrayHeader(exp);
+
+				ArrayType itemArrayType = itemType as ArrayType;
+				const string itemArrayFormatString = "*(0x{0:x}+{1})";
+				ObjectValue[] children = new ObjectValue[lHeader[0]];
+
+				DGdbCommandResult iterRes = new DGdbCommandResult(
+					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\"",
+				              lHeader[0],
+				              itemArrayType,
+				              res.GetValue("thread-id")));
+
+				for (uint i = 0; i < lHeader[0]; i++) {
+					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
+					AdaptArrayForD(itemArrayType, String.Format(itemArrayFormatString, lHeader[1], sizeof(uint)*arrayHeaderSize*i), ref iterRes);
+					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
+				}
+				res.SetProperty("has_more", "1");
+				res.SetProperty("numchild", lHeader[0].ToString());
+				res.SetProperty("children", children);
+			}
 		}
 
-		void CreateObjectValuesForPrimitiveArray(ref DGdbCommandResult res, byte typeToken, uint arrayLength, ArrayDecl arrayType, byte[] array)
+		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, uint arrayLength, ArrayDecl arrayType, byte[] array)
 		{
 			if (arrayLength > 0) {
 				uint lItemSize = DGdbTools.SizeOf(typeToken);
@@ -307,16 +340,16 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				for (uint i = 0; i < arrayLength; i++) {
 					String itemParseString = String.Format(
-						"^done,name=\"{0}.{1}\",numchild=\"{2}\",value=\"{3}\",type=\"{4}\",thread-id=\"{5}\",has_more=\"{6}\"",
-						res.GetValue("name"), "item" + i, 0,
+						"^done,name=\"{0}.[{1}]\",numchild=\"{2}\",value=\"{3}\",type=\"{4}\",thread-id=\"{5}\",has_more=\"{6}\"",
+						res.GetValue("name"), i, 0,
 						DGdbTools.GetValueFunction(typeToken)(array, i, lItemSize),
 						arrayType.ValueType, res.GetValue("thread-id"), 0);
 					items[i] = CreateObjectValue(String.Format("[{0}]", i), new DGdbCommandResult(itemParseString));
 				}
-
-				res.SetProperty("has_more", "1");
-				res.SetProperty("numchild", arrayLength.ToString());
-				res.SetProperty("children", items);
+				return items;
+			}
+			else {
+				return null;
 			}
 		}
 
@@ -347,7 +380,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				typeName = "none";
 			}
 			
-			if (typeName.EndsWith("]") || typeName.Equals("string")) {
+			if (typeName.EndsWith("]") || typeName.EndsWith("string")) {
 				val = ObjectValue.CreateArray(this, new ObjectPath(vname), typeName, nchild, flags, children /* added */);
 			}
 			else if (value == "{...}" || typeName.EndsWith("*") || nchild > 0) {
