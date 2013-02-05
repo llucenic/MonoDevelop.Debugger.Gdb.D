@@ -130,6 +130,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			doubleBytes |= ((ulong)realSign << 63);
 
 			return BitConverter.ToDouble(BitConverter.GetBytes(doubleBytes), 0).ToString();
+			/*
+			 * -var-create - * "*(long double*)(((unsigned long[])REAL)[1]+24)"
+			 * ^done,name="var15",numchild="0",value="-2.9999999999999999999130411670751266e-154",type="long double",thread-id="1",has_more="0"
+			 */
 		}
 
 
