@@ -35,17 +35,19 @@ class NextDescendant : Descendant
 
 void main(string[] args)
 {
-	declareIntegral();
-	declareIntegralArrays();
-	declareFloatingPoint();
-	declareFloatingPointArray();
-	
-	int i = 6;
-	fun(12, "osem", new Descendant(6.8));
+	checkIntegral();
+	checkFloatingPoint();
 
-	float f;
+	IAbstract loc_ia = new Descendant(6.8);
+	int i = 6;
+
+	fun(12, "osem", loc_ia);
+
 	int refi = 13;
-	auto b = fun2(12, "osem", new NextDescendant(refi));
+	Descendant loc_nd = new NextDescendant(refi);
+	float f;
+	auto b = fun2(12, "osem", loc_nd);
+
 	b++;
 }
 
@@ -80,7 +82,7 @@ byte fun2(byte b, immutable(char)[] ica, Object ia)
 	return --b;
 }
 
-void declareIntegral()
+void checkIntegral()
 {
 	bool BOOL = false;
 	byte BYTE = -41;
@@ -100,13 +102,15 @@ void declareIntegral()
 	// statement to stop on when debugging
 	BOOL = true;
 	BOOL = false;
+
+	checkIntegralArrays();
 }
 
 
-void declareIntegralArrays()
+void checkIntegralArrays()
 {
 	bool[] BOOL = [ false, true ];
-	byte[] BYTE = [ -41, 127 ];
+	/*byte[] BYTE = [ -41, 127 ];
 	ubyte[] UBYTE = [ 198, 251 ];
 	short[] SHORT = [ -7_856, 9_876 ];
 	ushort[] USHORT = [ 54_577, 65_345 ];
@@ -119,7 +123,8 @@ void declareIntegralArrays()
 	dchar[] DCHAR = [ '\u20AC', 'ǵ', '⚤' ];
 	
 	short[][] SHORT2 = [ [ -1_234, 5_678 ], [ -7_856, 9_876 ] ];
-	immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];
+	immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];*/
+	immutable(char)[][][] STRING23 = [ [ "str01", "\u00b2", "Str3" ], [ "0x21", "22", "2³" ] ];
 
 	// statement to stop on when debugging
 	BOOL[0] = true;
@@ -127,7 +132,7 @@ void declareIntegralArrays()
 }
 
 
-void declareFloatingPoint()
+void checkFloatingPoint()
 {
 	float FLOAT = 1.1;
 	//ifloat IFLOAT = 2.2f;
@@ -144,10 +149,12 @@ void declareFloatingPoint()
 	// statement to stop on when debugging
 	FLOAT = 10.10;
 	FLOAT = 1.1;
+
+	checkFloatingPointArray();
 }
 
 
-void declareFloatingPointArray()
+void checkFloatingPointArray()
 {
 	float[] FLOAT = [ 1.1, -5e23 ];
 	double[] DOUBLE = [ 4.4, 8.26500029, 7.7, -3e-154 ];

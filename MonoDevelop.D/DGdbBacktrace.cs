@@ -249,7 +249,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			catch (Exception e) {
 				// just for debugging purposes
-				res.SetProperty("value", "Exception: " + e.Message);
+				res.SetProperty("value", "Gdb.D Exception: " + e.Message);
 			}
 			return res;
 		}
@@ -280,6 +280,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 		void AdaptArrayForD(ArrayType arrayType, string exp, ref DGdbCommandResult res)
 		{
 			AbstractType itemType = arrayType.ValueType;
+			if (itemType == null) {
+				//itemType = (arrayType.TypeDeclarationOf as ArrayDecl).ValueType;
+			}
 			uint lArrayLength = 0;
 
 			if (itemType is PrimitiveType) {
@@ -316,7 +319,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				ObjectValue[] children = new ObjectValue[lHeader[0]];
 
 				DGdbCommandResult iterRes = new DGdbCommandResult(
-					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\"",
+					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
 				              lHeader[0],
 				              itemArrayType,
 				              res.GetValue("thread-id")));
