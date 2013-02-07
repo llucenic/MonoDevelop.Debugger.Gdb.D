@@ -110,7 +110,7 @@ void checkIntegral()
 void checkIntegralArrays()
 {
 	bool[] BOOL = [ false, true ];
-	/*byte[] BYTE = [ -41, 127 ];
+	byte[] BYTE = [ -41, 127 ];
 	ubyte[] UBYTE = [ 198, 251 ];
 	short[] SHORT = [ -7_856, 9_876 ];
 	ushort[] USHORT = [ 54_577, 65_345 ];
@@ -123,8 +123,8 @@ void checkIntegralArrays()
 	dchar[] DCHAR = [ '\u20AC', 'ǵ', '⚤' ];
 	
 	short[][] SHORT2 = [ [ -1_234, 5_678 ], [ -7_856, 9_876 ] ];
-	immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];*/
-	immutable(char)[][][] STRING23 = [ [ "str01", "\u00b2", "Str3" ], [ "0x21", "22", "2³" ] ];
+	immutable(char)[][] STRING2 = [ "abcďÄ", "ein String" ];
+	string[][] STRING23 = [ [ "str01", "\u00b2", "Str3" ], [ "0x21", "22", "2³" ] ];
 
 	// statement to stop on when debugging
 	BOOL[0] = true;

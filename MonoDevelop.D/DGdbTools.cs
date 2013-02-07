@@ -178,6 +178,27 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return FormatCharValue(chars[0], (uint)chars[0], itemSize);
 		}
 
+		static byte[] ConvertWcharToDchar(byte[] array)
+		{
+			byte[] arrayW = new byte[2 * array.Length];
+			for (int i = 0; i < array.Length / 2; i++) {
+				arrayW[4*i] = array[2*i];
+				arrayW[4*i + 1] = array[2*i + 1];
+				arrayW[4*i + 2] = arrayW[4*i + 3] = 0;
+			}
+			return arrayW;
+		}
+
+		public static string GetStringValue(byte[] array, byte typeToken)
+		{
+			switch (typeToken) {
+				case DTokens.Char:		return Encoding.UTF8.GetString(array);
+				case DTokens.Wchar:		return Encoding.UTF32.GetString(ConvertWcharToDchar(array));
+				case DTokens.Dchar:		return Encoding.UTF32.GetString(array);
+				default:				return Encoding.UTF8.GetString(array);
+			}
+		}
+
 		public static ValueFunction GetValueFunction(byte typeToken)
 		{
 			switch (typeToken) {

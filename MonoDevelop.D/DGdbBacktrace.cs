@@ -223,7 +223,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					}
 					else if (ds.Base is ArrayType) {
 						// simple array (indexed by int)
-						AdaptArrayForD(ds.Base as ArrayType, exp, ref res);
+						res.SetProperty("value", AdaptArrayForD(ds.Base as ArrayType, exp, ref res));
 					}
 					else if (ds.Base is AssocArrayType) {
 						// associative array
@@ -277,13 +277,18 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 		}
 
-		void AdaptArrayForD(ArrayType arrayType, string exp, ref DGdbCommandResult res)
+		string AdaptArrayForD(ArrayType arrayType, string exp, ref DGdbCommandResult res)
 		{
 			AbstractType itemType = arrayType.ValueType;
 			if (itemType == null) {
 				//itemType = (arrayType.TypeDeclarationOf as ArrayDecl).ValueType;
 			}
+			else if (itemType is AliasedType) {
+				itemType = DResolver.StripMemberSymbols(itemType);
+			}
 			uint lArrayLength = 0;
+			String lValue = null;
+			String lSeparator = "";
 
 			if (itemType is PrimitiveType) {
 				byte lArrayType = (itemType as PrimitiveType).TypeToken;
@@ -293,20 +298,29 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// read in raw array bytes
 				byte[] lBytes = ReadArrayBytes(exp, lItemSize, out lArrayLength);
-				int lLength = lBytes.Length;
+				//int lLength = lBytes.Length;
 
 				// define local variable value
-				String lValue = string.Format("{0}[{1}]", (arrayType.TypeDeclarationOf as ArrayDecl).ValueType, lLength);
-				/* TODO: MonoDevelop does not support value for array yet
-				 * 
-				 * lValue = string.Format("{0}[{1}:{2}] \"{3}\"",
-									   (ds.Base.TypeDeclarationOf as ArrayDecl).ValueType,
-				                       dcharString.Length, lLength, dcharString);
-				 */
+				//String lValue = string.Format("{0}[{1}]", (arrayType.TypeDeclarationOf as ArrayDecl).ValueType, lLength);
+				ObjectValue[] primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength, arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
+
+				if (DGdbTools.IsCharType(lArrayType)) {
+					/*lValue = string.Format("{0}[{1}:{2}] \"{3}\"",
+						   (ds.Base.TypeDeclarationOf as ArrayDecl).ValueType,
+				            dcharString.Length, lLength, dcharString);*/
+					lValue = "\"" + DGdbTools.GetStringValue(lBytes, lArrayType) + "\"";
+				}
+				else {
+					foreach (ObjectValue ov in primitiveArrayObjects) {
+						lValue += lSeparator + ov.Value;
+						lSeparator = ", ";
+					}
+					lValue = "[ " + lValue + " ]";
+				}
 
 				res.SetProperty("has_more", "1");
 				res.SetProperty("numchild", lArrayLength.ToString());
-				res.SetProperty("children", CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength, arrayType.TypeDeclarationOf as ArrayDecl, lBytes));
+				res.SetProperty("children", primitiveArrayObjects);
 
 				res.SetProperty("value", lValue);
 			}
@@ -315,6 +329,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				uint[] lHeader = ReadArrayHeader(exp);
 
 				ArrayType itemArrayType = itemType as ArrayType;
+
 				const string itemArrayFormatString = "*(0x{0:x}+{1})";
 				ObjectValue[] children = new ObjectValue[lHeader[0]];
 
@@ -326,13 +341,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				for (uint i = 0; i < lHeader[0]; i++) {
 					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
-					AdaptArrayForD(itemArrayType, String.Format(itemArrayFormatString, lHeader[1], sizeof(uint)*arrayHeaderSize*i), ref iterRes);
+					String lItemValue = AdaptArrayForD(itemArrayType, String.Format(itemArrayFormatString, lHeader[1], sizeof(uint)*arrayHeaderSize*i), ref iterRes);
+					lValue += lSeparator + (lItemValue ?? "null");
+					lSeparator = ", ";
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
 				}
+				lValue = "[ " + lValue + " ]";
 				res.SetProperty("has_more", "1");
 				res.SetProperty("numchild", lHeader[0].ToString());
 				res.SetProperty("children", children);
 			}
+			return lValue;
 		}
 
 		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, uint arrayLength, ArrayDecl arrayType, byte[] array)
@@ -386,6 +405,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 			
 			if (typeName.EndsWith("]") || typeName.EndsWith("string")) {
 				val = ObjectValue.CreateArray(this, new ObjectPath(vname), typeName, nchild, flags, children /* added */);
+				if (value == null) {
+					value = "[" + nchild + "]";
+				}
+				else {
+					typeName += ", length: " + nchild;
+				}
+				val.DisplayValue = value;
 			}
 			else if (value == "{...}" || typeName.EndsWith("*") || nchild > 0) {
 				val = ObjectValue.CreateObject(this, new ObjectPath(vname), typeName, value, flags, children /* added */);
