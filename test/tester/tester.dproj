@@ -42,5 +42,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="main.d" />
+    <Compile Include="classes.d" />
+    <Compile Include="primitives.d" />
+    <Compile Include="arrays.d" />
   </ItemGroup>
 </Project>

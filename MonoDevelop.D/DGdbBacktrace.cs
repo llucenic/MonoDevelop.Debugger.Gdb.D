@@ -223,6 +223,29 @@ namespace MonoDevelop.Debugger.Gdb.D
 					}
 					else if (dsBase is TemplateIntermediateType) {
 						// instance of class or interface
+						if (dsBase is ClassType) {
+							// first, we need to get the dynamic type of the class instance
+							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
+							KeyValuePair<ClassType, MemberSymbol[]>[] lMembers = ObjectMemberOffsetLookup.GetMembers(dsBase as ClassType, resolutionCtx);
+							/*foreach (var kvp in lMembers) {
+								Console.WriteLine(kvp.ToString());
+							}*/
+						}
+						else if (dsBase is StructType) {
+
+						}
+						else if (dsBase is UnionType) {
+
+						}
+						else if (dsBase is InterfaceType) {
+
+						}
+						else if (dsBase is TemplateType) {
+
+						}
+						else if (dsBase is MixinTemplateType) {
+
+						}
 						// read out the dynamic type of an object instance
 						//string cRes = DSession.DRunCommand ("x/s", "*(**(unsigned long)" + exp + "+0x14)");
 						// or interface instance

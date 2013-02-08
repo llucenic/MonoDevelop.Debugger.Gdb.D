@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace MonoDevelop.Debugger.MonoDevelop.D
+namespace MonoDevelop.Debugger.Gdb.D
 {
 	class ObjectMemberOffsetLookup : AbstractVisitor
 	{

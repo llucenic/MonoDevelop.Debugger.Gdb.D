@@ -123,11 +123,14 @@ namespace MonoDevelop.Debugger.Gdb
 				StartGdb ();
 				
 				// Initialize the terminal
-				if(tty != null)
+				if (tty != null) {
 					RunCommand ("-inferior-tty-set", Escape (tty));
+				}
 				
 				try {
-				} catch {
+					RunCommand ("-file-exec-and-symbols", Escape (startInfo.Command));
+				}
+				catch {
 					FireTargetEvent (TargetEventType.TargetExited, null);
 					throw;
 				}
