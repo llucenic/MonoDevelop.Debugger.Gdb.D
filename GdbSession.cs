@@ -77,44 +77,56 @@ namespace MonoDevelop.Debugger.Gdb
 		protected override void OnRun (DebuggerStartInfo startInfo)
 		{
 			lock (gdbLock) {
-				// Create a script to be run in a terminal
-				string script = Path.GetTempFileName ();
-				string ttyfile = Path.GetTempFileName ();
-				string ttyfileDone = ttyfile + "_done";
-				string tty;
-				
-				try {
-					File.WriteAllText (script, "tty > " + ttyfile + "\ntouch " + ttyfileDone + "\nsleep 10000d");
-					Mono.Unix.Native.Syscall.chmod (script, FilePermissions.ALLPERMS);
-					
-					console = Runtime.ProcessService.StartConsoleProcess (script, "", ".", ExternalConsoleFactory.Instance.CreateConsole (true), null);
-					DateTime tim = DateTime.Now;
-					while (!File.Exists (ttyfileDone)) {
-						System.Threading.Thread.Sleep (100);
-						if ((DateTime.Now - tim).TotalSeconds > 10)
-							throw new InvalidOperationException ("Console could not be created.");
+
+				string tty = null;
+
+				if (Environment.OSVersion.Platform == PlatformID.Unix)
+				{
+					// Create a script to be run in a terminal
+					string script = Path.GetTempFileName();
+					string ttyfile = Path.GetTempFileName();
+					string ttyfileDone = ttyfile + "_done";
+
+					try
+					{
+						File.WriteAllText(script, "tty > " + ttyfile + "\ntouch " + ttyfileDone + "\nsleep 10000d");
+						Mono.Unix.Native.Syscall.chmod(script, FilePermissions.ALLPERMS);
+
+						console = Runtime.ProcessService.StartConsoleProcess(script, "", ".", ExternalConsoleFactory.Instance.CreateConsole(true), null);
+						DateTime tim = DateTime.Now;
+						while (!File.Exists(ttyfileDone))
+						{
+							System.Threading.Thread.Sleep(100);
+							if ((DateTime.Now - tim).TotalSeconds > 10)
+								throw new InvalidOperationException("Console could not be created.");
+						}
+						tty = File.ReadAllText(ttyfile).Trim(' ', '\n');
 					}
-					tty = File.ReadAllText (ttyfile).Trim (' ','\n');
-				} finally {
-					try {
-						if (File.Exists (script))
-							File.Delete (script);
-						if (File.Exists (ttyfile))
-							File.Delete (ttyfile);
-						if (File.Exists (ttyfileDone))
-							File.Delete (ttyfileDone);
-					} catch {
-						// Ignore
+					finally
+					{
+						try
+						{
+							if (File.Exists(script))
+								File.Delete(script);
+							if (File.Exists(ttyfile))
+								File.Delete(ttyfile);
+							if (File.Exists(ttyfileDone))
+								File.Delete(ttyfileDone);
+						}
+						catch
+						{
+							// Ignore
+						}
 					}
 				}
 				
 				StartGdb ();
 				
 				// Initialize the terminal
-				RunCommand ("-inferior-tty-set", Escape (tty));
+				if(tty != null)
+					RunCommand ("-inferior-tty-set", Escape (tty));
 				
 				try {
-					RunCommand ("-file-exec-and-symbols", Escape (startInfo.Command));
 				} catch {
 					FireTargetEvent (TargetEventType.TargetExited, null);
 					throw;
