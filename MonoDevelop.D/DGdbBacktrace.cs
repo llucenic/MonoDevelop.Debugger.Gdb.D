@@ -42,6 +42,7 @@ using D_Parser.Parser;
 using D_Parser.Resolver;
 using D_Parser.Resolver.TypeResolution;
 using D_Parser.Resolver.ExpressionSemantics;
+using MonoDevelop.D.Parser;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -66,7 +67,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			Document document = Ide.IdeApp.Workbench.OpenDocument(firstFrame.SourceLocation.FileName);
 			DProject dProject = document.Project as DProject;
-			MonoDevelop.D.Parser.ParsedDModule pdm = document.ParsedDocument as MonoDevelop.D.Parser.ParsedDModule;
+			var pdm = document.ParsedDocument as ParsedDModule;
 			IBlockNode ast = pdm.DDom as IBlockNode;
 			ParseCacheList parsedCacheList = DCodeCompletionSupport.EnumAvailableModules(dProject);
 
