@@ -59,6 +59,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				case DTokens.Double:
 					return 8;
 				case DTokens.Real:
+					// size is 80 bits = 10 bytes, alignment is to 12
 					return 12;
 				default:
 					return 1;
@@ -220,6 +221,26 @@ namespace MonoDevelop.Debugger.Gdb.D
 				default:				return GetByteValue;
 			}
 		}
+
+		public static string AliasStringTypes(string type)
+		{
+			if (type.Contains("immutable(char)[]")) {
+				// we support Phobos alias for string
+				return type.Replace("immutable(char)[]", "string");
+			}
+			else if (type.Contains("immutable(wchar)[]")) {
+				// we support Phobos alias for wstring
+				return type.Replace("immutable(wchar)[]", "string");
+			}
+			else if (type.Contains("immutable(dchar)[]")) {
+				// we support Phobos alias for dstring
+				return type.Replace("immutable(dchar)[]", "string");
+			}
+			else {
+				return type;
+			}
+		}
+
 	}
 }
 

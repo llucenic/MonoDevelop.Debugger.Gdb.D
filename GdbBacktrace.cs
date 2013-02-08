@@ -359,7 +359,7 @@ namespace MonoDevelop.Debugger.Gdb
 			return buffer.GetLines (firstLine, firstLine + count - 1);
 		}
 		
-		public object GetRawValue (ObjectPath path, EvaluationOptions options)
+		public virtual object GetRawValue (ObjectPath path, EvaluationOptions options)
 		{
 			return null;
 		}

@@ -92,6 +92,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				foreach (ResultData data in variables) {
 					ObjectValue val = CreateVarObject(data.GetValue("name"));
 					if (val != null) {
+						// we get rid of unresolved or erroneous variables
 						values.Add(val);
 					}
 				}
@@ -145,6 +146,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				}
 			}
 			if (isParam == false) {
+				// resolve block members
 				DSymbol ds = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null) as DSymbol;
 				res.SetProperty("type", dynamicType ?? ds.Definition.Type.ToString());
 			}
@@ -207,13 +209,18 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				if (at is DSymbol) {
 					DSymbol ds = at as DSymbol;
+					AbstractType dsBase = ds.Base;
+					if (dsBase is AliasedType) {
+						// unalias aliased types
+						dsBase = DResolver.StripMemberSymbols(dsBase);
+					}
 
-					if (ds.Base is PrimitiveType) {
+					if (dsBase is PrimitiveType) {
 						// primitive type
 						// we adjust only wchar and dchar
-						res.SetProperty("value", AdaptPrimitiveForD((ds.Base as PrimitiveType).TypeToken, res.GetValue("value")));
+						res.SetProperty("value", AdaptPrimitiveForD((dsBase as PrimitiveType).TypeToken, res.GetValue("value")));
 					}
-					else if (ds.Base is TemplateIntermediateType) {
+					else if (dsBase is TemplateIntermediateType) {
 						// instance of class or interface
 						// read out the dynamic type of an object instance
 						//string cRes = DSession.DRunCommand ("x/s", "*(**(unsigned long)" + exp + "+0x14)");
@@ -221,23 +228,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 						//string iRes = DSession.DRunCommand ("x/s", "*(*(unsigned long)" + exp + "+0x14+0x14)");
 						//typ = iRes;
 					}
-					else if (ds.Base is ArrayType) {
+					else if (dsBase is ArrayType) {
 						// simple array (indexed by int)
-						res.SetProperty("value", AdaptArrayForD(ds.Base as ArrayType, exp, ref res));
+						res.SetProperty("value", AdaptArrayForD(dsBase as ArrayType, exp, ref res));
 					}
-					else if (ds.Base is AssocArrayType) {
+					else if (dsBase is AssocArrayType) {
 						// associative array
 						// TODO: ostava doriesit pole poli, objektov a asoc pole
 						//ObjectValue.CreateArray(source, path, typeName, arrayCount, flags, children);
 					}
 
-					if (ds.Base != null) {
+					if (dsBase != null) {
 						// define the dynamically defined object type
-						type = ds.Base.ToString();
-						if (type.Equals("immutable(char)[]")) {
-							// we support Phobos alias for string
-							type = "string";
-						}
+						type = DGdbTools.AliasStringTypes(type = dsBase.ToString());
 					}
 				}
 				else {
@@ -284,6 +287,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				//itemType = (arrayType.TypeDeclarationOf as ArrayDecl).ValueType;
 			}
 			else if (itemType is AliasedType) {
+				// unalias aliased item types
 				itemType = DResolver.StripMemberSymbols(itemType);
 			}
 			uint lArrayLength = 0;
@@ -302,7 +306,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// define local variable value
 				//String lValue = string.Format("{0}[{1}]", (arrayType.TypeDeclarationOf as ArrayDecl).ValueType, lLength);
-				ObjectValue[] primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength, arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
+				ObjectValue[] primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength,
+				                                                                          arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
 
 				if (DGdbTools.IsCharType(lArrayType)) {
 					/*lValue = string.Format("{0}[{1}:{2}] \"{3}\"",
@@ -336,7 +341,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				DGdbCommandResult iterRes = new DGdbCommandResult(
 					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
 				              lHeader[0],
-				              itemArrayType,
+				              DGdbTools.AliasStringTypes(itemArrayType.ToString()),
 				              res.GetValue("thread-id")));
 
 				for (uint i = 0; i < lHeader[0]; i++) {
@@ -347,6 +352,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
 				}
 				lValue = "[ " + lValue + " ]";
+				res.SetProperty("value", lValue);
 				res.SetProperty("has_more", "1");
 				res.SetProperty("numchild", lHeader[0].ToString());
 				res.SetProperty("children", children);
@@ -422,6 +428,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			val.Name = name;
 			return val;
 		}
+
+		public override object GetRawValue (ObjectPath path, EvaluationOptions options)
+		{
+			// GdbCommandResult res = DSession.RunCommand("-var-evaluate-expression", path.ToString());
+				
+			return new RawValueString(new DGdbRawValueString("N/A"));
+		}
+		
 	}
 
 	class DGdbDissassemblyBuffer : GdbDissassemblyBuffer
@@ -429,5 +443,35 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public DGdbDissassemblyBuffer(DGdbSession session, long addr) : base (session, addr)
 		{
 		}
+	}
+
+	class DGdbRawValueString : IRawValueString
+	{
+		String rawString;
+
+		public DGdbRawValueString(String rawString)
+		{
+			this.rawString = rawString;
+		}
+
+		public string Substring(int index, int length)
+		{
+			return this.rawString.Substring(index, length);
+		}
+
+		public string Value
+		{
+			get {
+				return this.rawString;
+			}
+		}
+
+		public int Length
+		{
+			get {
+				return this.rawString.Length;
+			}
+		}
+
 	}
 }
