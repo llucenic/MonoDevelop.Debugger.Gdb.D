@@ -253,7 +253,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 							byte[] bytes = ReadObjectBytes(exp);
 							// first, we need to get the dynamic type of the class instance
 							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-							KeyValuePair<ClassType, MemberSymbol[]>[] lMembers = ObjectMemberOffsetLookup.GetMembers(dsBase as ClassType, resolutionCtx);
+							var lMembers = ObjectMemberOffsetLookup.GetMembers(dsBase as ClassType, resolutionCtx);
 							List<DSymbol> members = new List<DSymbol>();
 							foreach (var kvp in lMembers) {
 								foreach (var ms in kvp.Value) {
