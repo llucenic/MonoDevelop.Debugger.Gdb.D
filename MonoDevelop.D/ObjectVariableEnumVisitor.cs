@@ -38,6 +38,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				isBase = true;
 			}
 
+			lk.res.Reverse();
 			return lk.res.ToArray();
 		}
 

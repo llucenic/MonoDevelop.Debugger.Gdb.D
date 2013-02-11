@@ -299,7 +299,7 @@ namespace MonoDevelop.Debugger.Gdb
 			}
 		}
 		
-		StackFrame CreateFrame (ResultData frameData)
+		protected virtual StackFrame CreateFrame (ResultData frameData)
 		{
 			string lang = "Native";
 			string func = frameData.GetValue ("func");

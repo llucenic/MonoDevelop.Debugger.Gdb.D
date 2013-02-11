@@ -26,6 +26,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+
 using Mono.Debugging.Client;
 using Mono.Debugging.Backend;
 
@@ -36,12 +38,11 @@ using MonoDevelop.Ide.Gui;
 
 using D_Parser.Dom;
 using D_Parser.Dom.Statements;
-using D_Parser.Dom.Expressions;
 using D_Parser.Misc;
+using D_Parser.Misc.Mangling;
 using D_Parser.Parser;
 using D_Parser.Resolver;
 using D_Parser.Resolver.TypeResolution;
-using D_Parser.Resolver.ExpressionSemantics;
 using MonoDevelop.D.Parser;
 
 
@@ -198,6 +199,30 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lBytes;
 		}
 
+		byte[] ReadObjectBytes(string exp)
+		{
+			// we read the object's length
+			String rmExp = "\"**(unsigned long*)(" + exp + ")+8\"";
+			String rmParam = String.Format("u {0} 1 1", sizeof(uint));
+			GdbCommandResult lRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
+
+			String sObjectLength = lRes.GetObject("memory").GetObject(0).GetObject("data").GetValue(0);
+			UInt32 lLength = UInt32.Parse(sObjectLength);
+
+			// we read the object's byte data
+			rmParam = String.Format("u 1 1 {0}", lLength);
+			lRes = DSession.RunCommand("-data-read-memory", exp, rmParam);
+
+			// convert raw data to bytes
+			ResultData rd = lRes.GetObject("memory").GetObject(0).GetObject("data");
+			byte[] lBytes = new byte[lLength];
+			for (int i = 0; i < lLength; i++) {
+				lBytes[i] = byte.Parse(rd.GetValue(i));
+			}
+
+			return lBytes;
+		}
+
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
 			try {
@@ -222,14 +247,23 @@ namespace MonoDevelop.Debugger.Gdb.D
 						res.SetProperty("value", AdaptPrimitiveForD((dsBase as PrimitiveType).TypeToken, res.GetValue("value")));
 					}
 					else if (dsBase is TemplateIntermediateType) {
-						// instance of class or interface
+						// instance of struct, union, template, mixin template, class or interface
 						if (dsBase is ClassType) {
+							// read in the object bytes
+							byte[] bytes = ReadObjectBytes(exp);
 							// first, we need to get the dynamic type of the class instance
 							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
 							KeyValuePair<ClassType, MemberSymbol[]>[] lMembers = ObjectMemberOffsetLookup.GetMembers(dsBase as ClassType, resolutionCtx);
-							/*foreach (var kvp in lMembers) {
-								Console.WriteLine(kvp.ToString());
-							}*/
+							List<DSymbol> members = new List<DSymbol>();
+							foreach (var kvp in lMembers) {
+								foreach (var ms in kvp.Value) {
+									members.Add(ms);
+								}
+								foreach (var itf in kvp.Key.BaseInterfaces) {
+									members.Add(itf);
+								}
+							}
+							//res.SetProperty("value", AdaptObjectForD(bytes, members));
 						}
 						else if (dsBase is StructType) {
 
@@ -327,6 +361,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 				// read in raw array bytes
 				byte[] lBytes = ReadArrayBytes(exp, lItemSize, out lArrayLength);
 				//int lLength = lBytes.Length;
+				/*String rmExp = String.Format("\"*(({0}[]*){1})\"", itemType, exp);
+				String rmParam = "- *";
+				GdbCommandResult lRes = DSession.RunCommand("-var-create", rmParam, rmExp);*/
 
 				// define local variable value
 				//String lValue = string.Format("{0}[{1}]", (arrayType.TypeDeclarationOf as ArrayDecl).ValueType, lLength);
@@ -382,6 +419,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				res.SetProperty("children", children);
 			}
 			return lValue;
+		}
+
+		String AdaptObjectForD(byte[] bytes, List<DSymbol> members)
+		{
+			throw new NotImplementedException();
 		}
 
 		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, uint arrayLength, ArrayDecl arrayType, byte[] array)
@@ -459,7 +501,45 @@ namespace MonoDevelop.Debugger.Gdb.D
 				
 			return new RawValueString(new DGdbRawValueString("N/A"));
 		}
-		
+
+		protected override StackFrame CreateFrame(ResultData frameData)
+		{
+			string lang = "Native";
+			string func = frameData.GetValue("func");
+			string sadr = frameData.GetValue("addr");
+			
+			int line = -1;
+			string sline = frameData.GetValue("line");
+			if (sline != null) {
+				line = int.Parse(sline);
+			}
+			
+			string sfile = frameData.GetValue("fullname");
+			if (sfile == null) {
+				sfile = frameData.GetValue("file");
+			}
+			if (sfile == null) {
+				sfile = frameData.GetValue("from");
+			}
+
+			// demangle D function/method name stored in func
+			ITypeDeclaration typeDecl = Demangler.DemangleQualifier(func);
+			if (typeDecl != null) {
+				func = typeDecl.ToString();
+			}
+
+			SourceLocation loc = new SourceLocation(func ?? "?", sfile, line);
+			
+			long addr;
+			if (!string.IsNullOrEmpty(sadr)) {
+				addr = long.Parse(sadr.Substring(2), NumberStyles.HexNumber);
+			}
+			else {
+				addr = 0;
+			}
+			
+			return new StackFrame(addr, loc, lang);
+		}
 	}
 
 	class DGdbDissassemblyBuffer : GdbDissassemblyBuffer
