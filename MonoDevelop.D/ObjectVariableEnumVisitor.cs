@@ -11,7 +11,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 {
 	class ObjectMemberOffsetLookup : AbstractVisitor
 	{
-		List<KeyValuePair<ClassType, MemberSymbol[]>> res = new List<KeyValuePair<ClassType, MemberSymbol[]>>();
+		List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>> res = new List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>>();
 		List<MemberSymbol> tempMembers = new List<MemberSymbol>();
 
 		ObjectMemberOffsetLookup(ResolutionContext ctxt)
@@ -20,7 +20,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		}
 
-		public static KeyValuePair<ClassType, MemberSymbol[]>[] GetMembers(ClassType ct, ResolutionContext ctxt)
+		public static KeyValuePair<TemplateIntermediateType, MemberSymbol[]>[] GetMembers(TemplateIntermediateType ct, ResolutionContext ctxt)
 		{
 			var lk = new ObjectMemberOffsetLookup(ctxt);
 
@@ -31,10 +31,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			{
 				lk.scanChildren(ct.Definition, MemberFilter.Variables, ref bk, false, isBase, false, false);
 
-				lk.res.Add(new KeyValuePair<ClassType, MemberSymbol[]>(ct, lk.tempMembers.ToArray()));
+				lk.res.Add(new KeyValuePair<TemplateIntermediateType, MemberSymbol[]>(ct, lk.tempMembers.ToArray()));
 				lk.tempMembers.Clear();
 
-				ct = ct.Base as ClassType;
+				ct = ct.Base as TemplateIntermediateType;
 				isBase = true;
 			}
 

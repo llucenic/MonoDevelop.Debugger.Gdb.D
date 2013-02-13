@@ -159,7 +159,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		uint[] ReadArrayHeader(string exp)
 		{
 			// read out array length and memory location (stored as two unsigned longs)
-			String rmExp = "\"(unsigned long[])(" + exp + ")\"";
+			String rmExp = "\"(unsigned long[])" + exp + "\"";
 			// parameters:
 			//	a	format (x hex, u unsigned, d signed decimal, ...)
 			//	b	item size (1 byte, 2 word, 4 long)
@@ -199,7 +199,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lBytes;
 		}
 
-		byte[] ReadObjectBytes(string exp)
+		byte[] ReadObjectBytes(string exp, out AbstractType ctype)
 		{
 			// we read the object's length
 			String rmExp = "\"**(unsigned long*)(" + exp + ")+8\"";
@@ -219,6 +219,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 			for (int i = 0; i < lLength; i++) {
 				lBytes[i] = byte.Parse(rd.GetValue(i));
 			}
+
+			// read the dynamic type of the instance
+			// we read the object's byte data
+			uint nameLength = 0;
+			byte[] nameBytes = ReadArrayBytes("***(unsigned long*)(" + exp + ")+4", DGdbTools.SizeOf(DTokens.Char), out nameLength);
+			String sType = DGdbTools.GetStringValue(nameBytes, DTokens.Char);
+
+			DToken optToken;
+			ctype = TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx);
 
 			return lBytes;
 		}
@@ -244,26 +253,32 @@ namespace MonoDevelop.Debugger.Gdb.D
 					if (dsBase is PrimitiveType) {
 						// primitive type
 						// we adjust only wchar and dchar
-						res.SetProperty("value", AdaptPrimitiveForD((dsBase as PrimitiveType).TypeToken, res.GetValue("value")));
+						res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValue("value")));
 					}
 					else if (dsBase is TemplateIntermediateType) {
 						// instance of struct, union, template, mixin template, class or interface
 						if (dsBase is ClassType) {
 							// read in the object bytes
-							byte[] bytes = ReadObjectBytes(exp);
+							AbstractType ctype = null;
+							byte[] bytes = ReadObjectBytes(exp, out ctype);
 							// first, we need to get the dynamic type of the class instance
 							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-							KeyValuePair<ClassType, MemberSymbol[]>[] lMembers = ObjectMemberOffsetLookup.GetMembers(dsBase as ClassType, resolutionCtx);
+							var lMembers = ObjectMemberOffsetLookup.GetMembers(/*dsBase*/ctype as ClassType, resolutionCtx);
 							List<DSymbol> members = new List<DSymbol>();
-							foreach (var kvp in lMembers) {
-								foreach (var ms in kvp.Value) {
-									members.Add(ms);
-								}
-								foreach (var itf in kvp.Key.BaseInterfaces) {
-									members.Add(itf);
+							if (lMembers != null && lMembers.Length > 0) {
+								foreach (var kvp in lMembers) {
+									if (kvp.Value != null && kvp.Value.Length > 0) {
+										foreach (var ms in kvp.Value) {
+											members.Add(ms);
+										}
+									}
+									if (kvp.Key.BaseInterfaces != null && kvp.Key.BaseInterfaces.Length > 0)
+									foreach (var itf in kvp.Key.BaseInterfaces) {
+										members.Add(itf);
+									}
 								}
 							}
-							//res.SetProperty("value", AdaptObjectForD(bytes, members));
+							res.SetProperty("value", AdaptObjectForD(bytes, members, ctype as ClassType, ref res));
 						}
 						else if (dsBase is StructType) {
 
@@ -315,21 +330,24 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return res;
 		}
 
-		static string AdaptPrimitiveForD(byte typeToken, string aValue)
+		static string AdaptPrimitiveForD(PrimitiveType pt, string aValue)
 		{
+			byte typeToken = pt.TypeToken;
+			DGdbTools.ValueFunction getValue = DGdbTools.GetValueFunction(typeToken);
+
 			switch (typeToken) {
 				case DTokens.Char:
 					string[] charValue = aValue.Split(new char[]{' '});
-					return DGdbTools.GetValueFunction(typeToken)(new byte[]{ byte.Parse(charValue[0]) }, 0, DGdbTools.SizeOf(typeToken));
+					return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, DGdbTools.SizeOf(typeToken));
 
 				case DTokens.Wchar:
 					uint lValueAsUInt = uint.Parse(aValue);
 					lValueAsUInt &= 0x0000FFFF;
-					return DGdbTools.GetValueFunction(typeToken)(BitConverter.GetBytes(lValueAsUInt), 0, DGdbTools.SizeOf(typeToken));
+					return getValue(BitConverter.GetBytes(lValueAsUInt), 0, DGdbTools.SizeOf(typeToken));
 				
 				case DTokens.Dchar:
 					lValueAsUInt = uint.Parse(aValue);
-					return DGdbTools.GetValueFunction(typeToken)(BitConverter.GetBytes(lValueAsUInt), 0, DGdbTools.SizeOf(typeToken));
+					return getValue(BitConverter.GetBytes(lValueAsUInt), 0, DGdbTools.SizeOf(typeToken));
 				
 				default:
 					/*lValueAsUInt = ulong.Parse(lValue);
@@ -421,9 +439,52 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lValue;
 		}
 
-		String AdaptObjectForD(byte[] bytes, List<DSymbol> members)
+		String AdaptObjectForD(byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
 		{
-			throw new NotImplementedException();
+			String result = res.GetValue("value");
+			if (ctype != null) result = ctype.TypeDeclarationOf.ToString();
+			uint currentOffset = sizeof(uint); // size of a vptr
+			uint memberLength = 0;
+
+			if (members.Count > 0) {
+				List<ObjectValue> memberList = new List<ObjectValue>();
+				foreach (var ds in members) {
+					MemberSymbol ms = ds as MemberSymbol;
+					memberLength = sizeof(uint);
+					if (ms != null) {
+						// member symbol resolution based on its type
+						AbstractType at = ms.Base;
+
+						if (at is PrimitiveType) {
+							memberLength = DGdbTools.SizeOf((at as PrimitiveType).TypeToken);
+							DGdbCommandResult memberRes = new DGdbCommandResult(
+								String.Format("^done,value=\"{0}\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
+							        DGdbTools.GetValueFunction((at as PrimitiveType).TypeToken)(bytes, currentOffset, 1),
+							    	at, res.GetValue("thread-id")));
+							memberRes.SetProperty("value", AdaptPrimitiveForD(at as PrimitiveType, memberRes.GetValue("value")));
+							memberList.Add(CreateObjectValue(ms.Name, memberRes));
+						}
+						else if (at is ArrayType) {
+
+						}
+						else if (at is TemplateIntermediateType) {
+							// instance of struct, union, template, mixin template, class or interface
+							if (at is ClassType) {
+							}
+						}
+					}
+					else {
+						InterfaceType it = ds as InterfaceType;
+						if (it != null) {
+							// interface implementation pointer to vptr
+							// we jump this just over
+						}
+					}
+					currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
+				}
+				res.SetProperty("children", memberList.ToArray());
+			}
+			return result;
 		}
 
 		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, uint arrayLength, ArrayDecl arrayType, byte[] array)
