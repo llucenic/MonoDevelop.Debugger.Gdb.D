@@ -1,0 +1,147 @@
+
+// 7 = PROT_READ|PROT_WRITE_PROT_EXEC
+// MAP_PRIVATE	0x02	/* changes are private */
+// MAP_ANONYMOUS	0x2		/* Don't use a file.  */
+set $toStr = mmap(0,128,7,0x20 | 0x2, -1,0)
+
+
+=======================================================
+
+set $ptr = malloc(8)
+
+call $toStr(varName,(long*)$ptr)
+
+print $ptr
+-> Contains string length
+
+print (char[])**($ptr+4)
+-> Prints string
+
+
+=======================================================
+
+print (char[])*((char**)evalO(mc))
+-> Prints string if evalO returns a char*
+
+
+set *$toStr = 0xc308458b
+
+0x08066884 <+0>:	55	push   %ebp
+   0x08066885 <+1>:	8b ec	mov    %esp,%ebp
+   0x08066887 <+3>:	8b 45 08	mov    0x8(%ebp),%eax
+   0x0806688a <+6>:	5d	pop    %ebp
+   0x0806688b <+7>:	c3	ret    
+
+
+binary contents of evalO:
+
+set *$toStr = 0x8b04458b
+set *($toStr+4) = 0x0451ff08
+set *($toStr+8) = 0x00c3d089
+
+set *$toStr = 0x8bec8b55
+set *($toStr+4) = 0xc35d0845 -- works! call $toStr(1234) returns integer 1234
+
+set *$toStr = 0x8bec8b55
+set *($toStr+4) = 0x088b0845
+set *($toStr+8) = 0x890451ff
+set *($toStr+12) = 0x00c35dd0 -- works! call $toStr(mc)  returns char*
+
+   0x08066864 <+0>:	55	push   %ebp
+   0x08066865 <+1>:	8b ec	mov    %esp,%ebp
+   0x08066867 <+3>:	8b 45 08	mov    0x8(%ebp),%eax
+   0x0806686a <+6>:	8b 08	mov    (%eax),%ecx
+   0x0806686c <+8>:	ff 51 04	call   *0x4(%ecx)
+   0x0806686f <+11>:	89 d0	mov    %edx,%eax
+   0x08066871 <+13>:	5d	pop    %ebp
+   0x08066872 <+14>:	c3	ret    
+
+
+========================================================================
+
+evalO v2:
+
+extern(C) export int evalO(Object o, void** c, bool* isException)
+{
+	try{
+		auto str = o.toString();
+		*c = cast(void*)str;
+		return str.length;
+	}catch(Exception ex){
+		*isException = true;
+		*c = cast(void*)ex.msg;
+		return ex.msg.length;
+	}
+}
+
+1) Run the program
+
+2) Init helper variable
+
+set $ptr = malloc(8)
+-> $ptr contains pointer to actual string; ($ptr+4) contains pointer to flag that hints an exception
+
+3) Inject examination function
+
+set $toStr       = mmap(0,128,7,0x20 | 0x2, -1,0)
+set *$toStr      = 0x83ec8b55
+set *($toStr+ 4) = 0x565314ec
+set *($toStr+ 8) = 0x08458b57
+set *($toStr+12) = 0x51ff088b
+set *($toStr+16) = 0xf4458904
+set *($toStr+20) = 0x8bf85589
+set *($toStr+24) = 0x5d8bf855
+set *($toStr+28) = 0x8b13890c
+set *($toStr+32) = 0x5e5ff445
+set *($toStr+36) = 0x8bc3c95b
+set *($toStr+40) = 0x06c61075
+set *($toStr+44) = 0xec4d8b01
+set *($toStr+48) = 0x8b0c518b
+set *($toStr+52) = 0x13890c5d
+set *($toStr+56) = 0x8bec458b
+set *($toStr+60) = 0x5e5f0840
+set *($toStr+64) = 0x00c3c95b
+ -- works! call(myObject, $ptr, $ptr+4) returns string length.
+
+
+
+The original and untouched code:
+
+   0x080666e0 <+0>:	push   %ebp
+   0x080666e1 <+1>:	mov    %esp,%ebp
+   0x080666e3 <+3>:	sub    $0x14,%esp
+   0x080666e6 <+6>:	push   %ebx
+   0x080666e7 <+7>:	push   %esi
+   0x080666e8 <+8>:	push   %edi
+   0x080666e9 <+9>:	mov    0x8(%ebp),%eax
+   0x080666ec <+12>:	mov    (%eax),%ecx
+   0x080666ee <+14>:	call   *0x4(%ecx)
+   0x080666f1 <+17>:	mov    %eax,-0xc(%ebp)
+   0x080666f4 <+20>:	mov    %edx,-0x8(%ebp)
+   0x080666f7 <+23>:	mov    -0x8(%ebp),%edx
+   0x080666fa <+26>:	mov    0xc(%ebp),%ebx
+   0x080666fd <+29>:	mov    %edx,(%ebx)
+   0x080666ff <+31>:	mov    -0xc(%ebp),%eax
+   0x08066702 <+34>:	pop    %edi
+   0x08066703 <+35>:	pop    %esi
+   0x08066704 <+36>:	pop    %ebx
+   0x08066705 <+37>:	leave  
+   0x08066706 <+38>:	ret    
+   0x08066707 <+39>:	mov    0x10(%ebp),%esi
+   0x0806670a <+42>:	movb   $0x1,(%esi)
+   0x0806670d <+45>:	mov    -0x14(%ebp),%ecx
+   0x08066710 <+48>:	mov    0xc(%ecx),%edx
+   0x08066713 <+51>:	mov    0xc(%ebp),%ebx
+   0x08066716 <+54>:	mov    %edx,(%ebx)
+   0x08066718 <+56>:	mov    -0x14(%ebp),%eax
+   0x0806671b <+59>:	mov    0x8(%eax),%eax
+   0x0806671e <+62>:	pop    %edi
+   0x0806671f <+63>:	pop    %esi
+   0x08066720 <+64>:	pop    %ebx
+   0x08066721 <+65>:	leave  
+   0x08066722 <+66>:	ret
+
+as --64 test.s -o test.o
+objcopy -O binary test.o test.bin
+
+
