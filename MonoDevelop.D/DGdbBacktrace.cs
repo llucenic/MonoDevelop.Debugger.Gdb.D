@@ -58,7 +58,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public DGdbBacktrace (GdbSession session, long threadId, int count, ResultData firstFrame)
 			: base(session, threadId, count, firstFrame)
 		{
-			DSession.InjectToStringCode();
 		}
 
 		public DGdbSession DSession {
@@ -90,6 +89,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			SelectFrame(frameIndex);
 			
 			if (variables.Count > 0) {
+				DSession.InjectToStringCode();
 				PrepareParser();
 
 				foreach (ResultData data in variables) {
@@ -129,8 +129,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				return CreateObjectValue(exp, AdaptVarObjectForD(exp, res/*, resAddr.GetValue("value")*/));
 			}
-			catch {
-				return ObjectValue.CreateUnknown(exp);
+			catch (Exception e) {
+				// just for debugging purposes
+				return ObjectValue.CreateUnknown(exp + " - Gdb.D Exception: " + e.Message);
 			}
 		}
 
@@ -176,14 +177,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lBytes;
 		}
 
-		byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype)
+		byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype, out UInt32 lOffset)
 		{
 			// first we need to get the right offset of the impmlemented interface address within object instance
 			// this is located in object.Interface instance referenced by twice dereferencing the exp
 			UInt32[] lOffsets = DSession.ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 12\"", 1);
-			UInt32 lOffset = lOffsets.Length > 0 ? lOffsets[0] : 0;
+			lOffset = lOffsets.Length > 0 ? lOffsets[0] : 0;
 			//TODO: fix the following dereference !
-			return ReadObjectBytes(String.Format("{0}-{1}", exp, lOffset), out ctype);
+			return ReadObjectBytes(String.Format("(void*){0}-{1}", exp, lOffset), out ctype);
 		}
 
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
@@ -198,6 +199,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				if (at is DSymbol) {
 					DSymbol ds = at as DSymbol;
+					if (ds.Definition == null || ds.Definition.EndLocation > this.codeLocation) {
+						// we by-pass not declared, thus not initialized, variables
+						return null;
+					}
 					AbstractType dsBase = ds.Base;
 					if (dsBase is AliasedType) {
 						// unalias aliased types
@@ -231,14 +236,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 						}
 						else if (dsBase is InterfaceType) {
 							// read in the interface instance bytes
-							byte[] bytes = ReadInstanceBytes(exp, out ctype);
+							UInt32 lOffset = 0;
+							byte[] bytes = ReadInstanceBytes(exp, out ctype, out lOffset);
 
 							// first, we need to get the dynamic type of the interface instance
 							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
 							// once we correctly back-offseted to the this pointer of the actual class instance
 							var members = MemberLookup.ListMembers(ctype, resolutionCtx);
 						
-							res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
+							res.SetProperty("value", AdaptObjectForD(
+								String.Format("(void*){0}-{1}", exp, lOffset),
+								bytes, members, ctype as ClassType, ref res));
 						}
 						else if (dsBase is TemplateType) {
 
@@ -436,7 +444,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
 				}
 				res.SetProperty("children", memberList.ToArray());
-				res.SetProperty("numchild", memberList.Count);
+				res.SetProperty("numchild", memberList.Count.ToString());
 			}
 			return result;
 		}

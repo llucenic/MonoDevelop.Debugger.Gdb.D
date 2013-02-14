@@ -51,4 +51,9 @@ class NextDescendant : Descendant
 		r = 7;
 		return 87L;
 	}
+
+	string toString()
+	{
+		return "Hello from overriden toString() in NextDescendant !";
+	}
 }

@@ -203,12 +203,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		internal ResultData ReadGdbMemory(string exp, uint itemsCount, uint itemSize)
 		{
+			if (itemsCount > 100000) {
+				Console.Error.WriteLine("Suspiciuos block length: " + itemsCount);
+				return null;
+			}
 			// parameters for -data-read-memory command in GDB/MI:
 			//	a	format (x hex, u unsigned, d signed decimal, ...)
 			//	b	item size (1 byte, 2 word, 4 long)
 			//	c	number of rows in the output result
 			//	d	number of columns in a row of the output result
 			String rmParam = String.Format("{0} {1} {2} {3}", 'u', itemSize, 1, itemsCount);
+
 			try {
 				GdbCommandResult lRes = RunCommand("-data-read-memory", exp, rmParam);
 				return lRes.GetObject("memory").GetObject(0).GetObject("data");
@@ -220,7 +225,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public void InjectToStringCode()
 		{
-			if (codeInjected == true) return;
+			//if (codeInjected == true) return;
 
 			// we prepare the toString() method call on interfaces and class instances
 			// by injecting D code directly into debugged D program loaded into GDB
@@ -229,7 +234,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			//	a) a pointer to (i.e. address of) the actual returned string - *$ptr
 			//	b) length of the returned string - *($ptr+4)
 			//	c) an exception signaling flag (true, in case of exception occuring during <object>.toString() execution) - *($ptr+8)
-			GdbCommandResult res = RunCommand("set $ptr = malloc(12)", "");
+			/*GdbCommandResult res =*/ RunCommand("set $ptr = malloc(12)", "");
 
 			// TODD: check on the result res, if it contains a warning (in cases GDB cannot execute inferior calls - a bug in kernel) 
 			// in such cases the injected toString() execution should be avoided throughout the Gdb.D plugin
@@ -327,11 +332,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			string result = "";
 
-			// set the exception signaling flag to false (zero)
-			RunCommand("set *($ptr+8) = 0", "");
+			// set the string length to zero and exception signaling flag to false (zero)
+			RunCommand("set *($ptr+4) = 0x0", "");
+			RunCommand("set *($ptr+8) = 0x0", "");
 
 			// execute the injected toString() through the invoke method
-			GdbCommandResult lRes = RunCommand(String.Format("set *($ptr+4) = $toStr({0},$ptr, $ptr+8)", exp), "");
+			/*GdbCommandResult lRes =*/ RunCommand(String.Format("set *($ptr+4) = $toStr({0},$ptr, $ptr+8)", exp), "");
 			// the direct result of the call contains the string length
 
 			// read in the string address and the exception flag
@@ -350,6 +356,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			else {
 				result = "Gdb.D Error: Unable to read the toString() value from the GDB debugger thread";
+			}
+			if (result.Length > 0) {
+				result = "\"" + result + "\"";
 			}
 			return result;
 		}
