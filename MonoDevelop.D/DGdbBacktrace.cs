@@ -58,6 +58,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public DGdbBacktrace (GdbSession session, long threadId, int count, ResultData firstFrame)
 			: base(session, threadId, count, firstFrame)
 		{
+			DSession.InjectToStringCode();
 		}
 
 		public DGdbSession DSession {
@@ -154,82 +155,35 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 		}
 
-		const uint arrayHeaderSize = 2;
-
-		uint[] ReadArrayHeader(string exp)
-		{
-			// read out array length and memory location (stored as two unsigned longs)
-			String rmExp = "\"(unsigned long[])" + exp + "\"";
-			// parameters:
-			//	a	format (x hex, u unsigned, d signed decimal, ...)
-			//	b	item size (1 byte, 2 word, 4 long)
-			//	c	number of rows in the output result
-			//	d	number of columns in a row of the output result
-			String rmParam = String.Format("u {0} 1 {1}", sizeof(uint), arrayHeaderSize);
-			GdbCommandResult lRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
-
-			uint[] result = new uint[arrayHeaderSize];
-			for (int i = 0; i < arrayHeaderSize; i++) {
-				result[i] = uint.Parse(lRes.GetObject("memory").GetObject(0).GetObject("data").GetValue(i));
-			}
-
-			return result;
-		}
-
-		byte[] ReadArrayBytes(string exp, uint itemSize, out uint arrayLength)
-		{
-			// read header
-			uint[] header = ReadArrayHeader(exp);
-
-			arrayLength = header[0];
-			uint lLength = arrayLength * itemSize;
-
-			// read out the actual array bytes
-			String rmExp = header[1].ToString();
-			String rmParam = String.Format("{0} {1} {2} {3}", 'u', sizeof(byte), 1, lLength);
-			GdbCommandResult lRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
-
-			// convert raw data to bytes
-			ResultData rd = lRes.GetObject("memory").GetObject(0).GetObject("data");
-			byte[] lBytes = new byte[lLength];
-			for (int i = 0; i < lLength; i++) {
-				lBytes[i] = byte.Parse(rd.GetValue(i));
-			}
-
-			return lBytes;
-		}
-
-		byte[] ReadObjectBytes(string exp, out AbstractType ctype)
+		byte[] ReadObjectBytes(string exp, out TemplateIntermediateType ctype)
 		{
 			// we read the object's length
-			String rmExp = "\"**(unsigned long*)(" + exp + ")+8\"";
-			String rmParam = String.Format("u {0} 1 1", sizeof(uint));
-			GdbCommandResult lRes = DSession.RunCommand("-data-read-memory", rmExp, rmParam);
-
-			String sObjectLength = lRes.GetObject("memory").GetObject(0).GetObject("data").GetValue(0);
-			UInt32 lLength = UInt32.Parse(sObjectLength);
-
+			UInt32[] lLengths = DSession.ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 8\"", 1);
+			UInt32 lLength = lLengths.Length > 0 ? lLengths[0] : 0;
+			
 			// we read the object's byte data
-			rmParam = String.Format("u 1 1 {0}", lLength);
-			lRes = DSession.RunCommand("-data-read-memory", exp, rmParam);
-
-			// convert raw data to bytes
-			ResultData rd = lRes.GetObject("memory").GetObject(0).GetObject("data");
-			byte[] lBytes = new byte[lLength];
-			for (int i = 0; i < lLength; i++) {
-				lBytes[i] = byte.Parse(rd.GetValue(i));
-			}
+			byte[] lBytes = DSession.ReadByteArray(exp, lLength);
 
 			// read the dynamic type of the instance
 			// we read the object's byte data
 			uint nameLength = 0;
-			byte[] nameBytes = ReadArrayBytes("***(unsigned long*)(" + exp + ")+4", DGdbTools.SizeOf(DTokens.Char), out nameLength);
+			byte[] nameBytes = DSession.ReadArrayBytes("***(unsigned long*)(" + exp + ") + 4", DGdbTools.SizeOf(DTokens.Char), out nameLength);
 			String sType = DGdbTools.GetStringValue(nameBytes, DTokens.Char);
 
 			DToken optToken;
-			ctype = TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx);
+			ctype = TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx) as TemplateIntermediateType;
 
 			return lBytes;
+		}
+
+		byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype)
+		{
+			// first we need to get the right offset of the impmlemented interface address within object instance
+			// this is located in object.Interface instance referenced by twice dereferencing the exp
+			UInt32[] lOffsets = DSession.ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 12\"", 1);
+			UInt32 lOffset = lOffsets.Length > 0 ? lOffsets[0] : 0;
+			//TODO: fix the following dereference !
+			return ReadObjectBytes(String.Format("{0}-{1}", exp, lOffset), out ctype);
 		}
 
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
@@ -257,28 +211,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 					}
 					else if (dsBase is TemplateIntermediateType) {
 						// instance of struct, union, template, mixin template, class or interface
+						TemplateIntermediateType ctype = null;
+
 						if (dsBase is ClassType) {
 							// read in the object bytes
-							AbstractType ctype = null;
 							byte[] bytes = ReadObjectBytes(exp, out ctype);
+
 							// first, we need to get the dynamic type of the class instance
 							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-							var lMembers = ObjectMemberOffsetLookup.GetMembers(/*dsBase*/ctype as ClassType, resolutionCtx);
-							List<DSymbol> members = new List<DSymbol>();
-							if (lMembers != null && lMembers.Length > 0) {
-								foreach (var kvp in lMembers) {
-									if (kvp.Value != null && kvp.Value.Length > 0) {
-										foreach (var ms in kvp.Value) {
-											members.Add(ms);
-										}
-									}
-									if (kvp.Key.BaseInterfaces != null && kvp.Key.BaseInterfaces.Length > 0)
-									foreach (var itf in kvp.Key.BaseInterfaces) {
-										members.Add(itf);
-									}
-								}
-							}
-							res.SetProperty("value", AdaptObjectForD(bytes, members, ctype as ClassType, ref res));
+							var members = MemberLookup.ListMembers(ctype, resolutionCtx);
+						
+							res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
 						}
 						else if (dsBase is StructType) {
 
@@ -287,7 +230,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 						}
 						else if (dsBase is InterfaceType) {
+							// read in the interface instance bytes
+							byte[] bytes = ReadInstanceBytes(exp, out ctype);
 
+							// first, we need to get the dynamic type of the interface instance
+							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
+							// once we correctly back-offseted to the this pointer of the actual class instance
+							var members = MemberLookup.ListMembers(ctype, resolutionCtx);
+						
+							res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
 						}
 						else if (dsBase is TemplateType) {
 
@@ -377,7 +328,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				lItemSize = DGdbTools.SizeOf(lArrayType);
 
 				// read in raw array bytes
-				byte[] lBytes = ReadArrayBytes(exp, lItemSize, out lArrayLength);
+				byte[] lBytes = DSession.ReadArrayBytes(exp, lItemSize, out lArrayLength);
 				//int lLength = lBytes.Length;
 				/*String rmExp = String.Format("\"*(({0}[]*){1})\"", itemType, exp);
 				String rmParam = "- *";
@@ -410,7 +361,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			else if (itemType is ArrayType) {
 				// read in array header information (item count and address)
-				uint[] lHeader = ReadArrayHeader(exp);
+				uint[] lHeader = DSession.ReadArrayHeader(exp);
 
 				ArrayType itemArrayType = itemType as ArrayType;
 
@@ -425,7 +376,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				for (uint i = 0; i < lHeader[0]; i++) {
 					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
-					String lItemValue = AdaptArrayForD(itemArrayType, String.Format(itemArrayFormatString, lHeader[1], sizeof(uint)*arrayHeaderSize*i), ref iterRes);
+					String lItemValue = AdaptArrayForD(itemArrayType, String.Format(itemArrayFormatString, lHeader[1], sizeof(uint)*2*i), ref iterRes);
 					lValue += lSeparator + (lItemValue ?? "null");
 					lSeparator = ", ";
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
@@ -439,10 +390,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lValue;
 		}
 
-		String AdaptObjectForD(byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
+		String AdaptObjectForD(string exp, byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
 		{
 			String result = res.GetValue("value");
-			if (ctype != null) result = ctype.TypeDeclarationOf.ToString();
+			result = DSession.InvokeToString(exp);
+			if (ctype != null && result.Equals("")) result = ctype.TypeDeclarationOf.ToString();
+
 			uint currentOffset = sizeof(uint); // size of a vptr
 			uint memberLength = 0;
 
@@ -483,6 +436,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
 				}
 				res.SetProperty("children", memberList.ToArray());
+				res.SetProperty("numchild", memberList.Count);
 			}
 			return result;
 		}

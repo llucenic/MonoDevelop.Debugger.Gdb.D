@@ -61,6 +61,7 @@ namespace MonoDevelop.Debugger.Gdb
 		Dictionary<int, WaitCallback> breakUpdates = new Dictionary<int,WaitCallback> ();
 		bool breakUpdateEventsQueued;
 		const int BreakEventUpdateNotifyDelay = 500;
+		const int CommandTimeout = 2500;
 
 		protected bool internalStop;
 		protected bool logGdb;
@@ -588,7 +589,7 @@ namespace MonoDevelop.Debugger.Gdb
 					
 					sin.WriteLine (command + " " + string.Join (" ", args));
 					
-					if (!Monitor.Wait (syncLock, 4000))
+					if (!Monitor.Wait (syncLock, CommandTimeout))
 						throw new InvalidOperationException ("Command execution timeout.");
 					if (lastResult.Status == CommandStatus.Error)
 						throw new InvalidOperationException (lastResult.ErrorMessage);

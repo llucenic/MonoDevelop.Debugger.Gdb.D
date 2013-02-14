@@ -27,10 +27,7 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Text;
-using Mono.Debugging.Client;
-using Mono.Debugging.Backend;
 
 namespace MonoDevelop.Debugger.Gdb
 {

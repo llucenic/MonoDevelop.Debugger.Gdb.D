@@ -87,9 +87,9 @@
     <Compile Include="GdbEvent.cs" />
     <Compile Include="GdbSession.cs" />
     <Compile Include="GdbSessionFactory.cs" />
-    <Compile Include="MonoDevelop.D\ObjectVariableEnumVisitor.cs" />
     <Compile Include="ResultData.cs" />
     <Compile Include="MonoDevelop.D\DGdbTools.cs" />
+    <Compile Include="MonoDevelop.D\MemberLookup.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="MonoDevelop.D\Manifest.addin.xml" />

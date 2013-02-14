@@ -1,28 +1,46 @@
-﻿using D_Parser.Dom;
+﻿using System.Collections.Generic;
+using System.Linq;
+
+using D_Parser.Dom;
 using D_Parser.Resolver;
 using D_Parser.Resolver.ASTScanner;
 using D_Parser.Resolver.TypeResolution;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
-	class ObjectMemberOffsetLookup : AbstractVisitor
+	class MemberLookup : AbstractVisitor
 	{
 		List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>> res = new List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>>();
 		List<MemberSymbol> tempMembers = new List<MemberSymbol>();
 
-		ObjectMemberOffsetLookup(ResolutionContext ctxt)
+		MemberLookup(ResolutionContext ctxt)
 			: base(ctxt)
 		{
-
 		}
 
-		public static KeyValuePair<TemplateIntermediateType, MemberSymbol[]>[] GetMembers(TemplateIntermediateType ct, ResolutionContext ctxt)
+		public static List<DSymbol> ListMembers(TemplateIntermediateType tiType, ResolutionContext ctx)
 		{
-			var lk = new ObjectMemberOffsetLookup(ctxt);
+			var lMembers = MemberLookup.GetMembers(tiType, ctx);
+			List<DSymbol> members = new List<DSymbol>();
+			if (lMembers != null && lMembers.Length > 0) {
+				foreach (var kvp in lMembers) {
+					if (kvp.Value != null && kvp.Value.Length > 0) {
+						foreach (var ms in kvp.Value) {
+							members.Add(ms);
+						}
+					}
+					if (kvp.Key.BaseInterfaces != null && kvp.Key.BaseInterfaces.Length > 0)
+						foreach (var itf in kvp.Key.BaseInterfaces) {
+							members.Add(itf);
+						}
+				}
+			}
+			return members;
+		}
+
+		protected static KeyValuePair<TemplateIntermediateType, MemberSymbol[]>[] GetMembers(TemplateIntermediateType ct, ResolutionContext ctxt)
+		{
+			var lk = new MemberLookup(ctxt);
 
 			bool isBase = false;
 			bool bk = false;
@@ -65,7 +83,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			//return base.PrefilterSubnodes(pack, out subPackages);
 		}
 
-		public override System.Collections.Generic.IEnumerable<INode> PrefilterSubnodes(IBlockNode bn)
+		public override IEnumerable<INode> PrefilterSubnodes(IBlockNode bn)
 		{
 			var vars = new List<INode>();
 			foreach (var n in bn)
