@@ -11,57 +11,37 @@
     <RootNamespace>MonoDevelop.Debugger</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
+    <DebugSymbols>True</DebugSymbols>
     <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>build</OutputPath>
+    <Optimize>False</Optimize>
+    <OutputPath>Mono-D\MonoDevelop.DBinding\bin\Debug</OutputPath>
     <DefineConstants>DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <ConsolePause>false</ConsolePause>
+    <ConsolePause>False</ConsolePause>
     <Execution>
       <Execution clr-version="Net_2_0" />
     </Execution>
+    <CustomCommands>
+      <CustomCommands>
+        <Command type="Execute" command="../tutorial.lib/monodevelop/main/build/bin/MonoDevelop.exe" workingdir="../tutorial.lib/monodevelop/main/build/bin" externalConsole="True" />
+      </CustomCommands>
+    </CustomCommands>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>build</OutputPath>
+    <Optimize>False</Optimize>
+    <OutputPath>Mono-D\MonoDevelop.DBinding\bin\Debug</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <ConsolePause>false</ConsolePause>
+    <ConsolePause>False</ConsolePause>
     <Execution>
       <Execution clr-version="Net_2_0" />
     </Execution>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="MonoDevelop.Core, Version=1.9.2.0, Culture=neutral">
-      <SpecificVersion>False</SpecificVersion>
-      <Package>monodevelop</Package>
-      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="MonoDevelop.Ide, Version=1.9.2.0, Culture=neutral">
-      <SpecificVersion>False</SpecificVersion>
-      <Package>monodevelop</Package>
-      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Ide.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Mono.Posix" />
-    <Reference Include="MonoDevelop.Debugger, Version=2.1.0.0, Culture=neutral">
-      <Package>monodevelop-core-addins</Package>
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger\MonoDevelop.Debugger.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="MonoDevelop.Debugger.Soft, Version=2.2.0.0, Culture=neutral">
-      <Package>monodevelop-core-addins</Package>
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger.Soft\MonoDevelop.Debugger.Soft.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Mono.Debugging, Version=0.0.0.0, Culture=neutral, PublicKeyToken=5e9ce85b0923c84f">
-      <Package>monodevelop</Package>
       <HintPath>..\tutorial.lib\monodevelop\main\build\bin\Mono.Debugging.dll</HintPath>
       <Private>False</Private>
     </Reference>
@@ -72,6 +52,22 @@
     <Reference Include="System" />
     <Reference Include="ICSharpCode.NRefactory">
       <HintPath>Mono-D\ext\ICSharpCode.NRefactory.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MonoDevelop.Core">
+      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MonoDevelop.Ide">
+      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Ide.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MonoDevelop.Debugger">
+      <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger\MonoDevelop.Debugger.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MonoDevelop.Debugger.Soft">
+      <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger.Soft\MonoDevelop.Debugger.Soft.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
@@ -98,18 +94,20 @@
   <ProjectExtensions>
     <MonoDevelop>
       <Properties>
-        <Deployment.LinuxDeployData generatePcFile="false" />
+        <Deployment.LinuxDeployData generatePcFile="False" />
       </Properties>
     </MonoDevelop>
   </ProjectExtensions>
   <ItemGroup>
-    <ProjectReference Include="Mono-D\MonoDevelop.DBinding\MonoDevelop.D.csproj">
-      <Project>{5867254F-6B1C-4A4C-BF98-C283740A0470}</Project>
-      <Name>MonoDevelop.D</Name>
-    </ProjectReference>
     <ProjectReference Include="Mono-D\Parser\DParser2\DParser2.csproj">
       <Project>{0290A229-9AA1-41C3-B525-CAFB86D8BC42}</Project>
       <Name>DParser2</Name>
+      <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="Mono-D\MonoDevelop.DBinding\MonoDevelop.D.csproj">
+      <Project>{5867254F-6B1C-4A4C-BF98-C283740A0470}</Project>
+      <Name>MonoDevelop.D</Name>
+      <Private>False</Private>
     </ProjectReference>
   </ItemGroup>
 </Project>

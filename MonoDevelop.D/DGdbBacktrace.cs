@@ -64,32 +64,42 @@ namespace MonoDevelop.Debugger.Gdb.D
 			get { return session as DGdbSession; }
 		}
 
-		protected void PrepareParser()
+		protected bool PrepareParser()
 		{
-			Document document = Ide.IdeApp.Workbench.OpenDocument(firstFrame.SourceLocation.FileName);
-			DProject dProject = document.Project as DProject;
+			var document = Ide.IdeApp.Workbench.OpenDocument(firstFrame.SourceLocation.FileName);
+			if(document == null)
+				return false;
+			var dProject = document.Project as DProject;
+			if(dProject == null)
+				return false;
 			var pdm = document.ParsedDocument as ParsedDModule;
-			IBlockNode ast = pdm.DDom as IBlockNode;
-			ParseCacheList parsedCacheList = DCodeCompletionSupport.EnumAvailableModules(dProject);
+			if(pdm == null)
+				return false;
+			var ast = pdm.DDom;
+			if(ast == null)
+				return false;
+			var parsedCacheList = DCodeCompletionSupport.EnumAvailableModules(dProject);
 
-			/* this */ {
-				codeLocation = new CodeLocation(firstFrame.SourceLocation.Column,
+			codeLocation = new CodeLocation(firstFrame.SourceLocation.Column,
 											 	firstFrame.SourceLocation.Line);
-				curStmt = null;
-				curBlock = DResolver.SearchBlockAt(ast, codeLocation, out curStmt);
 
-				// TODO: find the second attribute's value
-				resolutionCtx = ResolutionContext.Create(parsedCacheList, null, curBlock, curStmt);
-			}
+			curBlock = DResolver.SearchBlockAt(ast, codeLocation, out curStmt);
+
+			resolutionCtx = ResolutionContext.Create(parsedCacheList, 
+			                                         new ConditionalCompilationFlags(
+														DCodeCompletionSupport.CreateEditorData(document, ast as DModule, new MonoDevelop.Ide.CodeCompletion.CodeCompletionContext(), '\0')), 
+			                                         curBlock, 
+			                                         curStmt);
+
+			return true;
 		}
 
 		protected ObjectValue[] GetVariables(int frameIndex, EvaluationOptions options, ResultData variables)
 		{
-			List<ObjectValue> values = new List<ObjectValue>();
+			var values = new List<ObjectValue>();
 			SelectFrame(frameIndex);
 			
 			if (variables.Count > 0) {
-				DSession.InjectToStringCode();
 				PrepareParser();
 
 				foreach (ResultData data in variables) {

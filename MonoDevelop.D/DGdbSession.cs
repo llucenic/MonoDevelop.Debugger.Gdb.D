@@ -130,6 +130,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return new Backtrace (bt);
 		}
 
+		protected override void OnRun (DebuggerStartInfo startInfo)
+		{
+			base.OnRun (startInfo);
+
+			InjectToStringCode();
+		}
+
 		protected override void FireTargetEvent (TargetEventType type, ResultData curFrame)
 		{
 			UpdateHitCountData ();
@@ -337,7 +344,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			RunCommand("set *($ptr+8) = 0x0", "");
 
 			// execute the injected toString() through the invoke method
-			/*GdbCommandResult lRes =*/ RunCommand(String.Format("set *($ptr+4) = $toStr({0},$ptr, $ptr+8)", exp), "");
+			/*GdbCommandResult lRes =*/ RunCommand(String.Format("set *($ptr+4) = $toStr({0},$ptr, $ptr+8)", exp));
 			// the direct result of the call contains the string length
 
 			// read in the string address and the exception flag
