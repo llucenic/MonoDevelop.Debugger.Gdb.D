@@ -2,6 +2,8 @@
 [Bb]in/
 [Oo]bj/
 
+*.userprefs
+
 # mstest test results
 TestResults
 
