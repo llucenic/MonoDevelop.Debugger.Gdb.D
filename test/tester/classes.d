@@ -27,7 +27,8 @@ class Descendant : Ancestor
 	
 	long nextMethod(real myParam)
 	{
-		r = myParam; return 154L;
+		r = myParam;
+		return 154L;
 	}
 	
 	wchar prevMethod(string str)

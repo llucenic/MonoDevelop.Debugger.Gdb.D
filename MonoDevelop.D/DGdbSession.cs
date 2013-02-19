@@ -30,7 +30,8 @@ using System.Threading;
 using Mono.Debugging.Client;
 
 using D_Parser.Parser;
-
+using D_Parser.Resolver;
+using D_Parser.Resolver.TypeResolution;
 
 using MonoDevelop.Debugger.Gdb;
 
@@ -42,8 +43,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		bool isMultiLine;
 		object commandLock = new object ();
 
-		static bool codeInjected = false;
-
 		public string DRunCommand (string command, params string[] args)
 		{
 			GdbCommandResult res;
@@ -53,7 +52,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 				res = RunCommand(command, args);
 				Monitor.PulseAll (commandLock);
 			}
-			//return res != null ? res.GetObject ("value") : "";
 			return res.GetValue("value");
 		}
 
@@ -208,6 +206,37 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return new UInt32[0];
 		}
 
+		public byte[] ReadObjectBytes(string exp, out TemplateIntermediateType ctype, ResolutionContext resolutionCtx)
+		{
+			// we read the object's length
+			UInt32[] lLengths = ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 8\"", 1);
+			UInt32 lLength = lLengths.Length > 0 ? lLengths[0] : 0;
+			
+			// we read the object's byte data
+			byte[] lBytes = ReadByteArray(exp, lLength);
+
+			// read the dynamic type of the instance:
+			// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
+			uint nameLength = 0;
+			byte[] nameBytes = ReadArrayBytes("***(unsigned long*)(" + exp + ") + 4", DGdbTools.SizeOf(DTokens.Char), out nameLength);
+			String sType = DGdbTools.GetStringValue(nameBytes, DTokens.Char);
+
+			DToken optToken;
+			ctype = TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), resolutionCtx) as TemplateIntermediateType;
+
+			return lBytes;
+		}
+
+		public byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype, out UInt32 lOffset, ResolutionContext resolutionCtx)
+		{
+			// first we need to get the right offset of the impmlemented interface address within object instance
+			// this is located in object.Interface instance referenced by twice dereferencing the exp
+			UInt32[] lOffsets = ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 12\"", 1);
+			lOffset = lOffsets.Length > 0 ? lOffsets[0] : 0;
+			//TODO: fix the following dereference !
+			return ReadObjectBytes(String.Format("(void*){0}-{1}", exp, lOffset), out ctype, resolutionCtx);
+		}
+
 		internal ResultData ReadGdbMemory(string exp, uint itemsCount, uint itemSize)
 		{
 			if (itemsCount > 100000) {
@@ -322,8 +351,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			foreach (string code in injectCode) {
 				RunCommand(code, "");
 			}
-
-			codeInjected = true;
 		}
 
 		/// <summary>

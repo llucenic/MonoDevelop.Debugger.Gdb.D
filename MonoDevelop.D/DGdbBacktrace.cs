@@ -32,9 +32,11 @@ using Mono.Debugging.Client;
 using Mono.Debugging.Backend;
 
 using MonoDevelop.Debugger.Gdb;
+using MonoDevelop.Ide.Gui;
+
 using MonoDevelop.D;
 using MonoDevelop.D.Completion;
-using MonoDevelop.Ide.Gui;
+using MonoDevelop.D.Parser;
 
 using D_Parser.Dom;
 using D_Parser.Dom.Statements;
@@ -43,7 +45,6 @@ using D_Parser.Misc.Mangling;
 using D_Parser.Parser;
 using D_Parser.Resolver;
 using D_Parser.Resolver.TypeResolution;
-using MonoDevelop.D.Parser;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -67,17 +68,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 		protected bool PrepareParser()
 		{
 			var document = Ide.IdeApp.Workbench.OpenDocument(firstFrame.SourceLocation.FileName);
-			if(document == null)
-				return false;
+			if (document == null) return false;
+
 			var dProject = document.Project as DProject;
-			if(dProject == null)
-				return false;
+			if (dProject == null) return false;
+
 			var pdm = document.ParsedDocument as ParsedDModule;
-			if(pdm == null)
-				return false;
+			if (pdm == null) return false;
+
 			var ast = pdm.DDom;
-			if(ast == null)
-				return false;
+			if (ast == null) return false;
+
 			var parsedCacheList = DCodeCompletionSupport.EnumAvailableModules(dProject);
 
 			codeLocation = new CodeLocation(firstFrame.SourceLocation.Column,
@@ -87,7 +88,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			resolutionCtx = ResolutionContext.Create(parsedCacheList, 
 			                                         new ConditionalCompilationFlags(
-														DCodeCompletionSupport.CreateEditorData(document, ast as DModule, new MonoDevelop.Ide.CodeCompletion.CodeCompletionContext(), '\0')), 
+														DCodeCompletionSupport.CreateEditorData(
+															document,
+															ast as DModule,
+															new MonoDevelop.Ide.CodeCompletion.CodeCompletionContext(),
+															'\0'
+														)
+													 ), 
 			                                         curBlock, 
 			                                         curStmt);
 
@@ -103,10 +110,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 				PrepareParser();
 
 				foreach (ResultData data in variables) {
-					ObjectValue val = CreateVarObject(data.GetValue("name"));
+					string varExp = data.GetValue("name");
+					ObjectValue val = CreateVarObject(varExp);
 					if (val != null) {
 						// we get rid of unresolved or erroneous variables
 						values.Add(val);
+					}
+					else {
+						Console.Write("Gdb.D: unresolved variable " + varExp);
+						Console.WriteLine(data);
 					}
 				}
 			}
@@ -166,51 +178,33 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 		}
 
-		byte[] ReadObjectBytes(string exp, out TemplateIntermediateType ctype)
-		{
-			// we read the object's length
-			UInt32[] lLengths = DSession.ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 8\"", 1);
-			UInt32 lLength = lLengths.Length > 0 ? lLengths[0] : 0;
-			
-			// we read the object's byte data
-			byte[] lBytes = DSession.ReadByteArray(exp, lLength);
-
-			// read the dynamic type of the instance
-			// we read the object's byte data
-			uint nameLength = 0;
-			byte[] nameBytes = DSession.ReadArrayBytes("***(unsigned long*)(" + exp + ") + 4", DGdbTools.SizeOf(DTokens.Char), out nameLength);
-			String sType = DGdbTools.GetStringValue(nameBytes, DTokens.Char);
-
-			DToken optToken;
-			ctype = TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx) as TemplateIntermediateType;
-
-			return lBytes;
-		}
-
-		byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype, out UInt32 lOffset)
-		{
-			// first we need to get the right offset of the impmlemented interface address within object instance
-			// this is located in object.Interface instance referenced by twice dereferencing the exp
-			UInt32[] lOffsets = DSession.ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 12\"", 1);
-			lOffset = lOffsets.Length > 0 ? lOffsets[0] : 0;
-			//TODO: fix the following dereference !
-			return ReadObjectBytes(String.Format("(void*){0}-{1}", exp, lOffset), out ctype);
-		}
-
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
 			try {
-				/*IdentifierExpression identifierExp = new IdentifierExpression(exp);
-				identifierExp.Location = identifierExp.EndLocation = codeLocation;
-				AbstractType at = Evaluation.EvaluateType(identifierExp, resolutionCtx);*/
-				AbstractType at = TypeDeclarationResolver.ResolveSingle(exp, resolutionCtx, null);
-
+				AbstractType at = null;
+				bool checkLocation = true;
+				if (exp.Equals(DTokens.GetTokenString(DTokens.This))) {
+					// resolve 'this'
+					string sType = res.GetValue("type");
+					// sType contains 'struct module.class.example *'
+					int structTokenLength = DTokens.GetTokenString(DTokens.Struct).Length;
+					sType = sType.Substring (structTokenLength + 1, sType.Length - structTokenLength - 3);
+					DToken optToken;
+					at = new MemberSymbol(
+							this.curBlock as DNode,
+							TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx),
+							this.curStmt);
+					checkLocation = false;
+				}
+				else {
+					at = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null);
+				}
 				string type = null;
 
 				if (at is DSymbol) {
 					DSymbol ds = at as DSymbol;
-					if (ds.Definition == null || ds.Definition.EndLocation > this.codeLocation) {
-						// we by-pass not declared, thus not initialized, variables
+					if (checkLocation == true && (ds.Definition == null || ds.Definition.EndLocation > this.codeLocation)) {
+						// we by-pass variables not declared so far, thus skipping not initialized variables
 						return null;
 					}
 					AbstractType dsBase = ds.Base;
@@ -230,10 +224,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 						if (dsBase is ClassType) {
 							// read in the object bytes
-							byte[] bytes = ReadObjectBytes(exp, out ctype);
+							byte[] bytes = DSession.ReadObjectBytes(exp, out ctype, resolutionCtx);
 
-							// first, we need to get the dynamic type of the class instance
-							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
 							var members = MemberLookup.ListMembers(ctype, resolutionCtx);
 						
 							res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
@@ -247,7 +239,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 						else if (dsBase is InterfaceType) {
 							// read in the interface instance bytes
 							UInt32 lOffset = 0;
-							byte[] bytes = ReadInstanceBytes(exp, out ctype, out lOffset);
+							byte[] bytes = DSession.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);
 
 							// first, we need to get the dynamic type of the interface instance
 							// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
@@ -347,20 +339,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// read in raw array bytes
 				byte[] lBytes = DSession.ReadArrayBytes(exp, lItemSize, out lArrayLength);
-				//int lLength = lBytes.Length;
-				/*String rmExp = String.Format("\"*(({0}[]*){1})\"", itemType, exp);
-				String rmParam = "- *";
-				GdbCommandResult lRes = DSession.RunCommand("-var-create", rmParam, rmExp);*/
 
 				// define local variable value
-				//String lValue = string.Format("{0}[{1}]", (arrayType.TypeDeclarationOf as ArrayDecl).ValueType, lLength);
 				ObjectValue[] primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength,
 				                                                                          arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
 
 				if (DGdbTools.IsCharType(lArrayType)) {
-					/*lValue = string.Format("{0}[{1}:{2}] \"{3}\"",
-						   (ds.Base.TypeDeclarationOf as ArrayDecl).ValueType,
-				            dcharString.Length, lLength, dcharString);*/
 					lValue = "\"" + DGdbTools.GetStringValue(lBytes, lArrayType) + "\"";
 				}
 				else {
@@ -451,7 +435,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 							// we jump this just over
 						}
 					}
-					currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
+					// TODO: use alignof property instead of constant
+					currentOffset += memberLength % sizeof(uint) == 0 ? memberLength : ((memberLength / sizeof(uint)) + 1) * sizeof(uint);
 				}
 				res.SetProperty("children", memberList.ToArray());
 				res.SetProperty("numchild", memberList.Count.ToString());
