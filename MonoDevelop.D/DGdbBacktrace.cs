@@ -39,11 +39,13 @@ using MonoDevelop.D.Completion;
 using MonoDevelop.D.Parser;
 
 using D_Parser.Dom;
+using D_Parser.Dom.Expressions;
 using D_Parser.Dom.Statements;
 using D_Parser.Misc;
 using D_Parser.Misc.Mangling;
 using D_Parser.Parser;
 using D_Parser.Resolver;
+using D_Parser.Resolver.ExpressionSemantics;
 using D_Parser.Resolver.TypeResolution;
 
 
@@ -194,6 +196,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 							this.curBlock as DNode,
 							TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx),
 							this.curStmt);
+					// TODO: find out better way to be in line with the general concept of resolving expressions
+					// one possible way is to query Evaluation.EvaluateType() as follows
+					//at = Evaluation.EvaluateType(new TokenExpression(DTokens.This), this.resolutionCtx);
 					checkLocation = false;
 				}
 				else {
