@@ -223,6 +223,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 						// we adjust only wchar and dchar
 						res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValue("value")));
 					}
+					else if (dsBase is PointerType) {
+						string sValue = res.GetValue("value");
+						UInt32[] lPointers = DSession.ReadUIntArray(sValue, 1);
+						if (lPointers.Length > 0) {
+							UInt32 lPointer = lPointers[0];
+							//res.SetProperty("value", AdaptPointerForD(dsBase as PointerType, sValue));
+						}
+					}
 					else if (dsBase is TemplateIntermediateType) {
 						// instance of struct, union, template, mixin template, class or interface
 						TemplateIntermediateType ctype = null;
@@ -255,10 +263,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 								String.Format("(void*){0}-{1}", exp, lOffset),
 								bytes, members, ctype as ClassType, ref res));
 						}
-						else if (dsBase is TemplateType) {
-
-						}
 						else if (dsBase is MixinTemplateType) {
+							// note: MixinTemplateType is TemplateType, therefore if-ed before it
+						}
+						else if (dsBase is TemplateType) {
 
 						}
 						// read out the dynamic type of an object instance

@@ -76,7 +76,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return false;
 		}
 
-		public override IEnumerable<IAbstractSyntaxTree> PrefilterSubnodes(ModulePackage pack, out ModulePackage[] subPackages)
+		public override IEnumerable<DModule> PrefilterSubnodes(ModulePackage pack, out ModulePackage[] subPackages)
 		{
 			subPackages = null;
 			return null;
