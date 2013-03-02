@@ -43,11 +43,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var lk = new MemberLookup(ctxt);
 
 			bool isBase = false;
-			bool bk = false;
 
 			while (ct != null)
 			{
-				lk.scanChildren(ct.Definition, MemberFilter.Variables, ref bk, false, isBase, false, false);
+				lk.scanChildren(ct.Definition, MemberFilter.Variables, false, isBase, false, false);
 
 				lk.res.Add(new KeyValuePair<TemplateIntermediateType, MemberSymbol[]>(ct, lk.tempMembers.ToArray()));
 				lk.tempMembers.Clear();

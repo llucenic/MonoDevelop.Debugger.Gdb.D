@@ -47,6 +47,7 @@ using D_Parser.Parser;
 using D_Parser.Resolver;
 using D_Parser.Resolver.ExpressionSemantics;
 using D_Parser.Resolver.TypeResolution;
+using MonoDevelop.D.Resolver;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -81,7 +82,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var ast = pdm.DDom;
 			if (ast == null) return false;
 
-			var parsedCacheList = DCodeCompletionSupport.EnumAvailableModules(dProject);
+			var parsedCacheList = DResolverWrapper.CreateCacheList(dProject);
 
 			codeLocation = new CodeLocation(firstFrame.SourceLocation.Column,
 											 	firstFrame.SourceLocation.Line);
@@ -89,14 +90,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			curBlock = DResolver.SearchBlockAt(ast, codeLocation, out curStmt);
 
 			resolutionCtx = ResolutionContext.Create(parsedCacheList, 
-			                                         new ConditionalCompilationFlags(
-														DCodeCompletionSupport.CreateEditorData(
-															document,
-															ast as DModule,
-															new MonoDevelop.Ide.CodeCompletion.CodeCompletionContext(),
-															'\0'
-														)
-													 ), 
+			                                         new ConditionalCompilationFlags(DResolverWrapper.CreateEditorData(document)), 
 			                                         curBlock, 
 			                                         curStmt);
 
