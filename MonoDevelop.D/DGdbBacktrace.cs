@@ -48,6 +48,7 @@ using D_Parser.Resolver;
 using D_Parser.Resolver.ExpressionSemantics;
 using D_Parser.Resolver.TypeResolution;
 using MonoDevelop.D.Resolver;
+using MonoDevelop.D.Projects;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -73,7 +74,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var document = Ide.IdeApp.Workbench.OpenDocument(firstFrame.SourceLocation.FileName);
 			if (document == null) return false;
 
-			var dProject = document.Project as DProject;
+			var dProject = document.Project as AbstractDProject;
 			if (dProject == null) return false;
 
 			var pdm = document.ParsedDocument as ParsedDModule;
