@@ -327,14 +327,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		string AdaptArrayForD(ArrayType arrayType, string exp, ref DGdbCommandResult res)
 		{
-			AbstractType itemType = arrayType.ValueType;
-			if (itemType == null) {
-				//itemType = (arrayType.TypeDeclarationOf as ArrayDecl).ValueType;
-			}
-			else if (itemType is AliasedType) {
-				// unalias aliased item types
-				itemType = DResolver.StripMemberSymbols(itemType);
-			}
+			var itemType = DResolver.StripMemberSymbols(arrayType.ValueType);
+
 			uint lArrayLength = 0;
 			String lValue = null;
 			String lSeparator = "";
@@ -347,7 +341,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// read in raw array bytes
 				byte[] lBytes = DSession.ReadArrayBytes(exp, lItemSize, out lArrayLength);
-
+				foreach (var b in lBytes)
+					Console.WriteLine ((char)b);
 				// define local variable value
 				ObjectValue[] primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength,
 				                                                                          arrayType.TypeDeclarationOf as ArrayDecl, lBytes);

@@ -9,6 +9,7 @@
     <OutputType>Library</OutputType>
     <AssemblyName>MonoDevelop.Debugger.Gdb.D</AssemblyName>
     <RootNamespace>MonoDevelop.Debugger</RootNamespace>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>True</DebugSymbols>
@@ -24,7 +25,7 @@
     </Execution>
     <CustomCommands>
       <CustomCommands>
-        <Command type="Execute" command="/opt/mono/bin/monodevelop" workingdir="" />
+        <Command type="Execute" command="/opt/mono/bin/monodevelop" workingdir="" externalConsole="True" />
       </CustomCommands>
     </CustomCommands>
   </PropertyGroup>
@@ -107,10 +108,12 @@
     <ProjectReference Include="Mono-D\Parser\DParser2\DParser2.csproj">
       <Project>{0290A229-9AA1-41C3-B525-CAFB86D8BC42}</Project>
       <Name>DParser2</Name>
+      <Private>False</Private>
     </ProjectReference>
     <ProjectReference Include="Mono-D\MonoDevelop.DBinding\MonoDevelop.D.csproj">
       <Project>{5867254F-6B1C-4A4C-BF98-C283740A0470}</Project>
       <Name>MonoDevelop.D</Name>
+      <Private>False</Private>
     </ProjectReference>
   </ItemGroup>
 </Project>

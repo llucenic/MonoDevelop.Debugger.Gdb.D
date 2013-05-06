@@ -228,7 +228,7 @@ namespace MonoDevelop.Debugger.Gdb
 			// There can be 'public' et al children for C++ structures
 			if (typeName == null)
 				typeName = "none";
-			
+			Console.WriteLine (name + " : "+typeName);
 			if (typeName.EndsWith ("]")) {
 				val = ObjectValue.CreateArray (this, new ObjectPath (vname), typeName, nchild, flags, null);
 			} else if (value == "{...}" || typeName.EndsWith ("*") || nchild > 0) {

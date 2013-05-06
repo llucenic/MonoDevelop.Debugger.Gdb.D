@@ -163,7 +163,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			// read header: array length and memory location (stored as two unsigned longs)
 			uint[] header = ReadArrayHeader(exp);
-
 			if (header.Length == ArrayHeaderSize) {
 				arrayLength = header[0];
 				uint lLength = arrayLength * itemSize;
@@ -347,10 +346,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 				"set *($toStr+56) = 0x8bec458b",
 				"set *($toStr+60) = 0x5e5f0840",
 				"set *($toStr+64) = 0x00c3c95b" };
-
+			/*
 			foreach (string code in injectCode) {
 				RunCommand(code, "");
-			}
+			}*/
 		}
 
 		/// <summary>
@@ -364,6 +363,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		/// </param>
 		public String InvokeToString(String exp)
 		{
+			return exp;
 			string result = "";
 
 			// set the string length to zero and exception signaling flag to false (zero)
