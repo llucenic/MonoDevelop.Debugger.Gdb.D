@@ -49,6 +49,7 @@ using D_Parser.Resolver.ExpressionSemantics;
 using D_Parser.Resolver.TypeResolution;
 using MonoDevelop.D.Resolver;
 using MonoDevelop.D.Projects;
+using System.Text;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -220,9 +221,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 					}
 					else if (dsBase is PointerType) {
 						string sValue = res.GetValue("value");
-						UInt32[] lPointers = DSession.ReadUIntArray(sValue, 1);
-						if (lPointers.Length > 0) {
-							UInt32 lPointer = lPointers[0];
+						IntPtr ptr;
+						if(DSession.Read(sValue, out ptr))
+						{
 							//res.SetProperty("value", AdaptPointerForD(dsBase as PointerType, sValue));
 						}
 					}
@@ -246,7 +247,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 						}
 						else if (dsBase is InterfaceType) {
 							// read in the interface instance bytes
-							UInt32 lOffset = 0;
+							IntPtr lOffset;
 							byte[] bytes = DSession.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);
 
 							// first, we need to get the dynamic type of the interface instance
@@ -307,16 +308,16 @@ namespace MonoDevelop.Debugger.Gdb.D
 			switch (typeToken) {
 				case DTokens.Char:
 					string[] charValue = aValue.Split(new char[]{' '});
-					return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, DGdbTools.SizeOf(typeToken));
+					return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, (uint)DGdbTools.SizeOf(typeToken));
 
 				case DTokens.Wchar:
 					uint lValueAsUInt = uint.Parse(aValue);
 					lValueAsUInt &= 0x0000FFFF;
-					return getValue(BitConverter.GetBytes(lValueAsUInt), 0, DGdbTools.SizeOf(typeToken));
+					return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken));
 				
 				case DTokens.Dchar:
 					lValueAsUInt = uint.Parse(aValue);
-					return getValue(BitConverter.GetBytes(lValueAsUInt), 0, DGdbTools.SizeOf(typeToken));
+					return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken));
 				
 				default:
 					/*lValueAsUInt = ulong.Parse(lValue);
@@ -329,33 +330,33 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			var itemType = DResolver.StripMemberSymbols(arrayType.ValueType);
 
-			uint lArrayLength = 0;
-			String lValue = null;
+			long lArrayLength;
+			StringBuilder lValue = new StringBuilder();
 			String lSeparator = "";
 
 			if (itemType is PrimitiveType) {
-				byte lArrayType = (itemType as PrimitiveType).TypeToken;
+				var lArrayType = (itemType as PrimitiveType).TypeToken;
 
-				uint lItemSize = 1;
-				lItemSize = DGdbTools.SizeOf(lArrayType);
+				var lItemSize = DGdbTools.SizeOf(lArrayType);
 
 				// read in raw array bytes
-				byte[] lBytes = DSession.ReadArrayBytes(exp, lItemSize, out lArrayLength);
+				var lBytes = DSession.ReadArrayBytes(exp, lItemSize, out lArrayLength);
 				foreach (var b in lBytes)
 					Console.WriteLine ((char)b);
 				// define local variable value
-				ObjectValue[] primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength,
+				var primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength,
 				                                                                          arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
 
 				if (DGdbTools.IsCharType(lArrayType)) {
-					lValue = "\"" + DGdbTools.GetStringValue(lBytes, lArrayType) + "\"";
+					lValue.Append("\"").Append(DGdbTools.GetStringValue(lBytes, lArrayType)).Append("\"");
 				}
 				else {
+					lValue.Append ('[');
 					foreach (ObjectValue ov in primitiveArrayObjects) {
-						lValue += lSeparator + ov.Value;
+						lValue.Append(lSeparator).Append(ov.Value);
 						lSeparator = ", ";
 					}
-					lValue = "[ " + lValue + " ]";
+					lValue.Append(']');
 				}
 
 				res.SetProperty("has_more", "1");
@@ -366,58 +367,63 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			else if (itemType is ArrayType) {
 				// read in array header information (item count and address)
-				uint[] lHeader = DSession.ReadArrayHeader(exp);
+				var lHeader = DSession.ReadDArrayHeader(exp);
+				var arrayLength = lHeader.Length.ToInt64 ();
+				var firstItem = lHeader.FirstItem.ToInt64 ();
 
-				ArrayType itemArrayType = itemType as ArrayType;
+				var itemArrayType = itemType as ArrayType;
 
-				const string itemArrayFormatString = "*(0x{0:x}+{1})";
-				ObjectValue[] children = new ObjectValue[lHeader[0]];
+				const string itemArrayFormatString = "*({0})";
+				var children = new ObjectValue[arrayLength];
 
 				DGdbCommandResult iterRes = new DGdbCommandResult(
 					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-				              lHeader[0],
+				              arrayLength,
 				              DGdbTools.AliasStringTypes(itemArrayType.ToString()),
 				              res.GetValue("thread-id")));
 
-				for (uint i = 0; i < lHeader[0]; i++) {
+				lValue.Append ('[');
+				for (int i = 0; i < arrayLength; i++) {
 					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
-					String lItemValue = AdaptArrayForD(itemArrayType, String.Format(itemArrayFormatString, lHeader[1], sizeof(uint)*2*i), ref iterRes);
-					lValue += lSeparator + (lItemValue ?? "null");
+					lValue.Append (AdaptArrayForD(itemArrayType, 
+					                              String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i)).ToString()),
+					                              ref iterRes) ?? "null");
 					lSeparator = ", ";
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
 				}
-				lValue = "[ " + lValue + " ]";
+				lValue.Append (']');
 				res.SetProperty("value", lValue);
 				res.SetProperty("has_more", "1");
-				res.SetProperty("numchild", lHeader[0].ToString());
+				res.SetProperty("numchild", arrayLength);
 				res.SetProperty("children", children);
+				DSession.LogWriter (false, lValue.ToString ());
 			}
-			return lValue;
+			return lValue.Length > 0 ? lValue.ToString() : null;
 		}
 
 		String AdaptObjectForD(string exp, byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
 		{
-			String result = res.GetValue("value");
+			var result = res.GetValue("value");
 			result = DSession.InvokeToString(exp);
 			if (ctype != null && result.Equals("")) result = ctype.TypeDeclarationOf.ToString();
 
-			uint currentOffset = sizeof(uint); // size of a vptr
-			uint memberLength = 0;
+			var currentOffset = IntPtr.Size; // size of a vptr
+			var memberLength = 0;
 
 			if (members.Count > 0) {
-				List<ObjectValue> memberList = new List<ObjectValue>();
+				var memberList = new List<ObjectValue>();
 				foreach (var ds in members) {
-					MemberSymbol ms = ds as MemberSymbol;
+					var ms = ds as MemberSymbol;
 					memberLength = sizeof(uint);
 					if (ms != null) {
 						// member symbol resolution based on its type
-						AbstractType at = ms.Base;
+						var at = ms.Base;
 
 						if (at is PrimitiveType) {
 							memberLength = DGdbTools.SizeOf((at as PrimitiveType).TypeToken);
 							DGdbCommandResult memberRes = new DGdbCommandResult(
 								String.Format("^done,value=\"{0}\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-							        DGdbTools.GetValueFunction((at as PrimitiveType).TypeToken)(bytes, currentOffset, 1),
+							        DGdbTools.GetValueFunction((at as PrimitiveType).TypeToken)(bytes, (uint)currentOffset, 1),
 							    	at, res.GetValue("thread-id")));
 							memberRes.SetProperty("value", AdaptPrimitiveForD(at as PrimitiveType, memberRes.GetValue("value")));
 							memberList.Add(CreateObjectValue(ms.Name, memberRes));
@@ -447,18 +453,18 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return result;
 		}
 
-		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, uint arrayLength, ArrayDecl arrayType, byte[] array)
+		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, long arrayLength, ArrayDecl arrayType, byte[] array)
 		{
 			if (arrayLength > 0) {
-				uint lItemSize = DGdbTools.SizeOf(typeToken);
+				var lItemSize = DGdbTools.SizeOf(typeToken);
 
-				ObjectValue[] items = new ObjectValue[arrayLength];
+				var items = new ObjectValue[arrayLength];
 
 				for (uint i = 0; i < arrayLength; i++) {
 					String itemParseString = String.Format(
 						"^done,name=\"{0}.[{1}]\",numchild=\"{2}\",value=\"{3}\",type=\"{4}\",thread-id=\"{5}\",has_more=\"{6}\"",
 						res.GetValue("name"), i, 0,
-						DGdbTools.GetValueFunction(typeToken)(array, i, lItemSize),
+						DGdbTools.GetValueFunction(typeToken)(array, i, (uint)lItemSize),
 						arrayType.ValueType, res.GetValue("thread-id"), 0);
 					items[i] = CreateObjectValue(String.Format("[{0}]", i), new DGdbCommandResult(itemParseString));
 				}

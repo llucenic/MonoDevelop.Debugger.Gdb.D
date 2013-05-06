@@ -155,29 +155,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 			OnTargetEvent (args);
 		}
 
-		const uint ArrayHeaderSize = 2;
-
-		public UInt32[] ReadArrayHeader(string exp)
-		{
-			return ReadUIntArray(String.Format("\"(unsigned long[]){0}\"", exp), ArrayHeaderSize);
-		}
-
-		public byte[] ReadArrayBytes(string exp, uint itemSize, out uint arrayLength)
+		public byte[] ReadArrayBytes(string exp, int itemSize, out long arrayLength)
 		{
 			// read header: array length and memory location (stored as two unsigned longs)
-			uint[] header = ReadArrayHeader(exp);
-			if (header.Length == ArrayHeaderSize) {
-				arrayLength = header[0];
-				uint lLength = arrayLength * itemSize;
+			var header = ReadDArrayHeader(exp);
+			if (header.Length.ToInt64() > 0 && header.FirstItem.ToInt64() > 0) {
+				arrayLength = header.Length.ToInt64 ();
 
 				// read out the actual array bytes
-				return ReadByteArray(header[1].ToString(), lLength);
+				return ReadByteArray(header.FirstItem.ToString(), header.Length.ToInt32() * itemSize);
 			}
 			arrayLength = 0;
 			return new byte[0];
 		}
 
-		public byte[] ReadByteArray(string exp, uint count)
+		public byte[] ReadByteArray(string exp, int count)
 		{
 			ResultData rawData = ReadGdbMemory(exp, count, sizeof(byte));
 
@@ -192,35 +184,68 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return new byte[0];
 		}
 
-
-		public UInt32[] ReadUIntArray(string exp, uint count)
+		static IntPtr GetIntPtr(ResultData d, int dataIndex = 0)
 		{
-			ResultData rawData = ReadGdbMemory(exp, count, sizeof(UInt32));
+			if (IntPtr.Size == 4)
+				return new IntPtr (Convert.ToInt32(d.GetValue(dataIndex)));
+			else if (IntPtr.Size == 8)
+				return new IntPtr (Convert.ToInt64(d.GetValue(dataIndex)));
 
-			if (rawData != null) {
-				// convert raw data to uints
-				UInt32[] lUints = new UInt32[count];
-				for (int i = (int)count - 1; i >= 0; --i) {
-					lUints[i] = UInt32.Parse(rawData.GetValue(i));
-				}
-				return lUints;
+			throw new InvalidOperationException ("Invalid pointer size ("+IntPtr.Size+"; Only 4 and 8 are accepted)");
+		}
+
+		public DArrayStruct ReadDArrayHeader(string exp)
+		{
+			var rawData = ReadGdbMemory("\"(unsigned int[])"+exp+"\"", 2, IntPtr.Size);
+
+			if (rawData != null && rawData.Count == 2) {
+				return new DArrayStruct{ Length = GetIntPtr(rawData, 0), FirstItem = GetIntPtr(rawData, 1) };
 			}
-			return new UInt32[0];
+			return new DArrayStruct();
+		}
+
+		public bool Read(string exp, out int v)
+		{
+			var rawData = ReadGdbMemory("\"(unsigned int[])"+exp+"\"", 2, IntPtr.Size);
+
+			if (rawData == null || rawData.Count < 1)
+			{
+				v = 0;
+				return false;
+			}
+
+			return Int32.TryParse(rawData.GetValue (0), out v);
+		}
+
+		public bool Read(string exp, out IntPtr v)
+		{
+			var rawData = ReadGdbMemory(exp, 1, IntPtr.Size);
+
+			if (rawData == null || rawData.Count < 0){
+				v = new IntPtr ();
+				return false;
+			}
+
+			v = GetIntPtr (rawData);
+			return true;
 		}
 
 		public byte[] ReadObjectBytes(string exp, out TemplateIntermediateType ctype, ResolutionContext resolutionCtx)
 		{
+			ctype = null;
+
 			// we read the object's length
-			UInt32[] lLengths = ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 8\"", 1);
-			UInt32 lLength = lLengths.Length > 0 ? lLengths[0] : 0;
-			
+			int length;
+			if (!Read ("\"**(unsigned int*)(" + exp + ") + "+IntPtr.Size+"\"", out length))
+				return new byte[0];
+
 			// we read the object's byte data
-			byte[] lBytes = ReadByteArray(exp, lLength);
+			byte[] lBytes = ReadByteArray(exp, length);
 
 			// read the dynamic type of the instance:
 			// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-			uint nameLength = 0;
-			byte[] nameBytes = ReadArrayBytes("***(unsigned long*)(" + exp + ") + 4", DGdbTools.SizeOf(DTokens.Char), out nameLength);
+			long nameLength;
+			byte[] nameBytes = ReadArrayBytes("***(unsigned int*)(" + exp + ") + "+IntPtr.Size, DGdbTools.SizeOf(DTokens.Char), out nameLength);
 			String sType = DGdbTools.GetStringValue(nameBytes, DTokens.Char);
 
 			DToken optToken;
@@ -229,17 +254,20 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return lBytes;
 		}
 
-		public byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype, out UInt32 lOffset, ResolutionContext resolutionCtx)
+		public byte[] ReadInstanceBytes(string exp, out TemplateIntermediateType ctype, out IntPtr offset, ResolutionContext resolutionCtx)
 		{
 			// first we need to get the right offset of the impmlemented interface address within object instance
 			// this is located in object.Interface instance referenced by twice dereferencing the exp
-			UInt32[] lOffsets = ReadUIntArray("\"**(unsigned long*)(" + exp + ") + 12\"", 1);
-			lOffset = lOffsets.Length > 0 ? lOffsets[0] : 0;
+			if(!Read("\"**(unsigned int*)(" + exp + ") + 12\"", out offset)){
+				ctype = null;
+				return new byte[0];
+			}
+
 			//TODO: fix the following dereference !
-			return ReadObjectBytes(String.Format("(void*){0}-{1}", exp, lOffset), out ctype, resolutionCtx);
+			return ReadObjectBytes(String.Format("(void*){0}-{1}", exp, offset), out ctype, resolutionCtx);
 		}
 
-		internal ResultData ReadGdbMemory(string exp, uint itemsCount, uint itemSize)
+		internal ResultData ReadGdbMemory(string exp, int itemsCount, int itemSize)
 		{
 			if (itemsCount > 100000) {
 				Console.Error.WriteLine("Suspiciuos block length: " + itemsCount);
@@ -250,10 +278,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			//	b	item size (1 byte, 2 word, 4 long)
 			//	c	number of rows in the output result
 			//	d	number of columns in a row of the output result
-			String rmParam = String.Format("{0} {1} {2} {3}", 'u', itemSize, 1, itemsCount);
+			var rmParam = String.Format("{0} {1} {2} {3}", 'u', itemSize, 1, itemsCount);
 
 			try {
-				GdbCommandResult lRes = RunCommand("-data-read-memory", exp, rmParam);
+				var lRes = RunCommand("-data-read-memory", exp, rmParam);
 				return lRes.GetObject("memory").GetObject(0).GetObject("data");
 			}
 			catch {
@@ -366,6 +394,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		/// </param>
 		public String InvokeToString(String exp)
 		{
+			//TODO: Enter Code for x64 systems and find out how to catch exceptions on linux (requires extra handler table entry)!
 			return exp;
 			string result = "";
 
@@ -374,14 +403,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			RunCommand("set *($ptr+8) = 0x0", "");
 
 			// execute the injected toString() through the invoke method
-			/*GdbCommandResult lRes =*/ RunCommand(String.Format("set *($ptr+4) = $toStr({0},$ptr, $ptr+8)", exp));
+			/*GdbCommandResult lRes =*/ RunCommand(String.Format("set *($ptr+"+DGdbTools.CalcOffset()+") = $toStr({0},$ptr, $ptr+"+DGdbTools.CalcOffset(2)+")", exp));
 			// the direct result of the call contains the string length
 
 			// read in the string address and the exception flag
 			// ptr[0] contains pointer to string (either .toString() or exception.msg)
 			// ptr[1] contains length of the string (either .toString() or exception.msg)
 			// ptr[2] contains exception flag
-			UInt32[] ptr = ReadUIntArray("$ptr", 3);
+			/*UInt32[] ptr = ReadDArrayHeader("$ptr", 3);
 
 			if (ptr.Length == 3) {
 				if (ptr[2] == 1) {
@@ -397,7 +426,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (result.Length > 0) {
 				result = "\"" + result + "\"";
 			}
-			return result;
+			return result;*/
 		}
+	}
+
+	public struct DArrayStruct
+	{
+		public IntPtr Length;
+		public IntPtr FirstItem;
 	}
 }

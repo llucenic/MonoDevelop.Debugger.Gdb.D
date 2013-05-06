@@ -33,11 +33,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 {
 	public class DGdbTools
 	{
-		public DGdbTools ()
+		public static int CalcOffset(int times = 1)
 		{
+			return IntPtr.Size * times;
 		}
 
-		public static uint SizeOf(byte typeToken)
+		public static int SizeOf(byte typeToken)
 		{
 			switch (typeToken) {
 				case DTokens.Bool:
