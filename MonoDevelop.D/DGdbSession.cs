@@ -132,7 +132,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			base.OnRun (startInfo);
 
-			InjectToStringCode();
+			try {
+				InjectToStringCode();
+			} catch { // It is normal to fail here, for example if the program has already finished
+			}
 		}
 
 		protected override void FireTargetEvent (TargetEventType type, ResultData curFrame)
