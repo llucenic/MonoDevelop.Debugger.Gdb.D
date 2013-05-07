@@ -28,6 +28,11 @@
         <Command type="Execute" command="/opt/mono/bin/monodevelop" workingdir="" externalConsole="True" />
       </CustomCommands>
     </CustomCommands>
+    <EnvironmentVariables>
+      <EnvironmentVariables>
+        <Variable name="MONODEVELOP_DISPATCH_DEBUG " value="1" />
+      </EnvironmentVariables>
+    </EnvironmentVariables>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>

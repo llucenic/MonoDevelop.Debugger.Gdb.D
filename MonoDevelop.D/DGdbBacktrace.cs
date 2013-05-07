@@ -56,6 +56,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 {
 	class DGdbBacktrace : GdbBacktrace
 	{
+		public const long MaximumDisplayCount = 10000;
+		public const long MaximumArrayLengthThreshold = 100000;
+
 		ResolutionContext resolutionCtx;
 		CodeLocation codeLocation;
 		IStatement curStmt;
@@ -178,7 +181,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
-			//try {
 				AbstractType at = null;
 				bool checkLocation = true;
 				if (exp.Equals(DTokens.GetTokenString(DTokens.This))) {
@@ -222,7 +224,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					else if (dsBase is PointerType) {
 						string sValue = res.GetValueString("value");
 						IntPtr ptr;
-						if(DSession.Read(sValue, out ptr))
+						if(false && DSession.Read(sValue, out ptr))
 						{
 							//res.SetProperty("value", AdaptPointerForD(dsBase as PointerType, sValue));
 						}
@@ -237,7 +239,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 							var members = MemberLookup.ListMembers(ctype, resolutionCtx);
 						
-							res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
+							//res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
 						}
 						else if (dsBase is StructType) {
 
@@ -292,11 +294,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// following code serves for static type resolution
 				ResolveStaticTypes(ref res, exp, type);
-			/*}
-			catch (Exception e) {
-				// just for debugging purposes
-				res.SetProperty("value", "Gdb.D Exception: " + e.Message);
-			}*/
+
 			return res;
 		}
 
@@ -362,14 +360,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 				res.SetProperty("has_more", "1");
 				res.SetProperty("numchild", lArrayLength.ToString());
 				res.SetProperty("children", primitiveArrayObjects);
-
 				res.SetProperty("value", lValue);
 			}
 			else if (itemType is ArrayType) {
+
 				// read in array header information (item count and address)
 				var lHeader = DSession.ReadDArrayHeader(exp);
 				lArrayLength = lHeader.Length.ToInt64 ();
 				var firstItem = lHeader.FirstItem.ToInt64 ();
+
 
 				var itemArrayType = itemType as ArrayType;
 
@@ -386,7 +385,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				for (int i = 0; i < lArrayLength; i++) {
 					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
 					lValue.Append (AdaptArrayForD(itemArrayType, 
-					                              String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i)).ToString()),
+					                              String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i*2)).ToString()),
 					                              ref iterRes) ?? "null");
 					lSeparator = ", ";
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
@@ -411,6 +410,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		String AdaptObjectForD(string exp, byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
 		{
+			return null;
 			var result = res.GetValueString("value");
 			result = DSession.InvokeToString(exp);
 			if (ctype != null && result.Equals("")) result = ctype.TypeDeclarationOf.ToString();
@@ -422,7 +422,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var memberList = new List<ObjectValue>();
 				foreach (var ds in members) {
 					var ms = ds as MemberSymbol;
-					memberLength = sizeof(uint);
+					memberLength = DGdbTools.CalcOffset();
 					if (ms != null) {
 						// member symbol resolution based on its type
 						var at = ms.Base;
@@ -463,6 +463,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, long arrayLength, ArrayDecl arrayType, byte[] array)
 		{
+			arrayLength = Math.Min (arrayLength, MaximumDisplayCount);
 			if (arrayLength > 0) {
 				var lItemSize = DGdbTools.SizeOf(typeToken);
 

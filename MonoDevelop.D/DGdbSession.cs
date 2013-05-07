@@ -75,7 +75,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 						line = line.Substring (2, line.Length - 5);
 					if(IsRunning){
 						ThreadPool.QueueUserWorkItem (delegate {
+							try{
 							OnTargetOutput (false, line + "\n");
+						}catch(Exception ex)
+						{
+							MonoDevelop.Core.LoggingService.LogFatalError("Error while processinng output \""+line+"\"", ex);
+						}
 						});
 					}
 					// added custom handling for D specific inquires
@@ -208,7 +213,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public bool Read(string exp, out int v)
 		{
-			var rawData = ReadGdbMemory("\"(unsigned int[])"+exp+"\"", 2, IntPtr.Size);
+			var rawData = ReadGdbMemory("\"(unsigned long[])"+exp+"\"", 1, 4);
 
 			if (rawData == null || rawData.Count < 1)
 			{
@@ -224,7 +229,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			var rawData = ReadGdbMemory(exp, 1, IntPtr.Size);
 
-			if (rawData == null || rawData.Count < 0){
+			if (rawData == null || rawData.Count < 1){
 				v = new IntPtr ();
 				return false;
 			}
