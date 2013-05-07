@@ -73,9 +73,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				case '&':
 					if (line.Length > 1 && line[1] == '"')
 						line = line.Substring (2, line.Length - 5);
-					ThreadPool.QueueUserWorkItem (delegate {
-						OnTargetOutput (false, line + "\n");
-					});
+					if(IsRunning){
+						ThreadPool.QueueUserWorkItem (delegate {
+							OnTargetOutput (false, line + "\n");
+						});
+					}
 					// added custom handling for D specific inquires
 					if (line == lastDCommand) {
 						isMultiLine = true;
