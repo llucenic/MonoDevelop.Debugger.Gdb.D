@@ -108,8 +108,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 				PrepareParser();
 
 				foreach (ResultData data in variables) {
-					string varExp = data.GetValue("name");
-					ObjectValue val = CreateVarObject(varExp);
+					var varExp = data.GetValueString("name");
+					var val = CreateVarObject(varExp);
 					if (val != null) {
 						// we get rid of unresolved or erroneous variables
 						values.Add(val);
@@ -139,20 +139,20 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		protected override ObjectValue CreateVarObject(string exp)
 		{
-			try {
+			//try {
 				session.SelectThread(threadId);
 				exp = exp.Replace("\"", "\\\"");
 				DGdbCommandResult res = DSession.RunCommand("-var-create", "-", "*", "\"" + exp + "\"") as DGdbCommandResult;
 				//DGdbCommandResult resAddr = DSession.RunCommand("-var-create", "-", "*", "\"&" + exp + "\"") as DGdbCommandResult;
-				string vname = res.GetValue("name");
+				var vname = res.GetValueString("name");
 				session.RegisterTempVariableObject(vname);
 
 				return CreateObjectValue(exp, AdaptVarObjectForD(exp, res/*, resAddr.GetValue("value")*/));
-			}
+			/*}
 			catch (Exception e) {
 				// just for debugging purposes
 				return ObjectValue.CreateUnknown(exp + " - Gdb.D Exception: " + e.Message);
-			}
+			}*/
 		}
 
 		void ResolveStaticTypes(ref DGdbCommandResult res, string exp, string dynamicType)
@@ -178,12 +178,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
-			try {
+			//try {
 				AbstractType at = null;
 				bool checkLocation = true;
 				if (exp.Equals(DTokens.GetTokenString(DTokens.This))) {
 					// resolve 'this'
-					string sType = res.GetValue("type");
+					var sType = res.GetValueString("type");
 					// sType contains 'struct module.class.example *'
 					int structTokenLength = DTokens.GetTokenString(DTokens.Struct).Length;
 					sType = sType.Substring (structTokenLength + 1, sType.Length - structTokenLength - 3);
@@ -217,10 +217,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 					if (dsBase is PrimitiveType) {
 						// primitive type
 						// we adjust only wchar and dchar
-						res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValue("value")));
+						res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValueString("value")));
 					}
 					else if (dsBase is PointerType) {
-						string sValue = res.GetValue("value");
+						string sValue = res.GetValueString("value");
 						IntPtr ptr;
 						if(DSession.Read(sValue, out ptr))
 						{
@@ -292,11 +292,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// following code serves for static type resolution
 				ResolveStaticTypes(ref res, exp, type);
-			}
+			/*}
 			catch (Exception e) {
 				// just for debugging purposes
 				res.SetProperty("value", "Gdb.D Exception: " + e.Message);
-			}
+			}*/
 			return res;
 		}
 
@@ -330,7 +330,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			var itemType = DResolver.StripMemberSymbols(arrayType.ValueType);
 
-			long lArrayLength;
+			long lArrayLength=0;
 			StringBuilder lValue = new StringBuilder();
 			String lSeparator = "";
 
@@ -368,22 +368,22 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else if (itemType is ArrayType) {
 				// read in array header information (item count and address)
 				var lHeader = DSession.ReadDArrayHeader(exp);
-				var arrayLength = lHeader.Length.ToInt64 ();
+				lArrayLength = lHeader.Length.ToInt64 ();
 				var firstItem = lHeader.FirstItem.ToInt64 ();
 
 				var itemArrayType = itemType as ArrayType;
 
 				const string itemArrayFormatString = "*({0})";
-				var children = new ObjectValue[arrayLength];
+				var children = new ObjectValue[lArrayLength];
 
 				DGdbCommandResult iterRes = new DGdbCommandResult(
 					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-				              arrayLength,
+				              lArrayLength,
 				              DGdbTools.AliasStringTypes(itemArrayType.ToString()),
 				              res.GetValue("thread-id")));
 
-				lValue.Append ('[');
-				for (int i = 0; i < arrayLength; i++) {
+				lValue.Append ("[");
+				for (int i = 0; i < lArrayLength; i++) {
 					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
 					lValue.Append (AdaptArrayForD(itemArrayType, 
 					                              String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i)).ToString()),
@@ -392,18 +392,26 @@ namespace MonoDevelop.Debugger.Gdb.D
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
 				}
 				lValue.Append (']');
+
 				res.SetProperty("value", lValue);
 				res.SetProperty("has_more", "1");
-				res.SetProperty("numchild", arrayLength);
+				res.SetProperty("numchild", lArrayLength);
 				res.SetProperty("children", children);
-				DSession.LogWriter (false, lValue.ToString ());
 			}
-			return lValue.Length > 0 ? lValue.ToString() : null;
+
+			if (lValue.Length < 1)
+				return null;
+
+			// Put the array length in front of the literal
+			if(lArrayLength > 1)
+				lValue.Insert(0,'´').Insert(0,lArrayLength);
+
+			return lValue.ToString();
 		}
 
 		String AdaptObjectForD(string exp, byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
 		{
-			var result = res.GetValue("value");
+			var result = res.GetValueString("value");
 			result = DSession.InvokeToString(exp);
 			if (ctype != null && result.Equals("")) result = ctype.TypeDeclarationOf.ToString();
 
@@ -425,7 +433,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 								String.Format("^done,value=\"{0}\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
 							        DGdbTools.GetValueFunction((at as PrimitiveType).TypeToken)(bytes, (uint)currentOffset, 1),
 							    	at, res.GetValue("thread-id")));
-							memberRes.SetProperty("value", AdaptPrimitiveForD(at as PrimitiveType, memberRes.GetValue("value")));
+							memberRes.SetProperty("value", AdaptPrimitiveForD(at as PrimitiveType, memberRes.GetValueString("value")));
 							memberList.Add(CreateObjectValue(ms.Name, memberRes));
 						}
 						else if (at is ArrayType) {
@@ -445,7 +453,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 						}
 					}
 					// TODO: use alignof property instead of constant
-					currentOffset += memberLength % sizeof(uint) == 0 ? memberLength : ((memberLength / sizeof(uint)) + 1) * sizeof(uint);
+					currentOffset += memberLength % IntPtr.Size == 0 ? memberLength : ((memberLength / IntPtr.Size) + 1) * IntPtr.Size;
 				}
 				res.SetProperty("children", memberList.ToArray());
 				res.SetProperty("numchild", memberList.Count.ToString());
@@ -481,9 +489,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return null;
 			}
 
-			string vname = data.GetValue("name");
-			string typeName = data.GetValue("type");
-			string value = data.GetValue("value");
+			string vname = data.GetValueString("name");
+			string typeName = data.GetValueString("type");
+			string value = data.GetValueString("value");
 			int nchild = data.GetInt("numchild");
 
 			// added code for handling children
@@ -510,6 +518,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				else {
 					typeName += ", length: " + nchild;
 				}
+				
 				val.DisplayValue = value;
 			}
 			else if (value == "{...}" || typeName.EndsWith("*") || nchild > 0) {
@@ -532,21 +541,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 		protected override StackFrame CreateFrame(ResultData frameData)
 		{
 			string lang = "Native";
-			string func = frameData.GetValue("func");
-			string sadr = frameData.GetValue("addr");
+			string func = frameData.GetValueString("func");
+			string sadr = frameData.GetValueString("addr");
 			
 			int line = -1;
-			string sline = frameData.GetValue("line");
+			string sline = frameData.GetValueString("line");
 			if (sline != null) {
 				line = int.Parse(sline);
 			}
 			
-			string sfile = frameData.GetValue("fullname");
+			string sfile = frameData.GetValueString("fullname");
 			if (sfile == null) {
-				sfile = frameData.GetValue("file");
+				sfile = frameData.GetValueString("file");
 			}
 			if (sfile == null) {
-				sfile = frameData.GetValue("from");
+				sfile = frameData.GetValueString("from");
 			}
 
 			// demangle D function/method name stored in func

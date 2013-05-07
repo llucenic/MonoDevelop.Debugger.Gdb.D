@@ -52,7 +52,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				res = RunCommand(command, args);
 				Monitor.PulseAll (commandLock);
 			}
-			return res.GetValue("value");
+			return res.GetValueString("value");
 		}
 
 		protected override void ProcessOutput (string line)
@@ -98,7 +98,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 						running = false;
 						ev = new GdbEvent (line);
 
-						string ti = ev.GetValue ("thread-id");
+						var ti = ev.GetValueString ("thread-id");
 						if (ti != null && ti != "all")
 							currentThread = activeThread = int.Parse (ti);
 						Monitor.PulseAll (eventLock);
@@ -121,10 +121,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		protected override Backtrace OnGetThreadBacktrace (long processId, long threadId)
 		{
-			ResultData data = SelectThread (threadId);
-			GdbCommandResult res = RunCommand ("-stack-info-depth");
-			int fcount = int.Parse (res.GetValue ("depth"));
-			DGdbBacktrace bt = new DGdbBacktrace (this, threadId, fcount, data != null ? data.GetObject ("frame") : null);
+			var data = SelectThread (threadId);
+			var res = RunCommand ("-stack-info-depth");
+			int fcount = res.GetInt ("depth");
+			var bt = new DGdbBacktrace (this, threadId, fcount, data != null ? data.GetObject ("frame") : null);
 			return new Backtrace (bt);
 		}
 
@@ -146,7 +146,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			
 			if (type != TargetEventType.TargetExited) {
 				GdbCommandResult res = RunCommand ("-stack-info-depth");
-				int fcount = int.Parse (res.GetValue ("depth"));
+				int fcount = res.GetInt ("depth");
 				
 				DGdbBacktrace bt = new DGdbBacktrace (this, activeThread, fcount, curFrame);
 				args.Backtrace = new Backtrace (bt);
@@ -177,7 +177,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				// convert raw data to bytes
 				byte[] lBytes = new byte[count];
 				for (int i = (int)count - 1; i >= 0; --i) {
-					lBytes[i] = byte.Parse(rawData.GetValue(i));
+					lBytes[i] = byte.Parse(rawData.GetValueString(i));
 				}
 				return lBytes;
 			}
@@ -214,7 +214,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return false;
 			}
 
-			return Int32.TryParse(rawData.GetValue (0), out v);
+			v = rawData.GetInt (0);
+			return true;
 		}
 
 		public bool Read(string exp, out IntPtr v)

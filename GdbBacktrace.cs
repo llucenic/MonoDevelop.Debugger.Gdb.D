@@ -89,7 +89,7 @@ namespace MonoDevelop.Debugger.Gdb
 			
 			GdbCommandResult res = session.RunCommand ("-stack-list-locals", "0");
 			foreach (ResultData data in res.GetObject ("locals"))
-				values.Add (CreateVarObject (data.GetValue ("name")));
+				values.Add (CreateVarObject (data.GetValueString ("name")));
 			
 			return values.ToArray ();
 		}
@@ -100,7 +100,7 @@ namespace MonoDevelop.Debugger.Gdb
 			SelectFrame (frameIndex);
 			GdbCommandResult res = session.RunCommand ("-stack-list-arguments", "0", frameIndex.ToString (), frameIndex.ToString ());
 			foreach (ResultData data in res.GetObject ("stack-args").GetObject (0).GetObject ("frame").GetObject ("args"))
-				values.Add (CreateVarObject (data.GetValue ("name")));
+				values.Add (CreateVarObject (data.GetValueString ("name")));
 			
 			return values.ToArray ();
 		}
@@ -180,7 +180,7 @@ namespace MonoDevelop.Debugger.Gdb
 				
 				GdbCommandResult res = session.RunCommand ("-stack-list-locals", "0");
 				foreach (ResultData data in res.GetObject ("locals")) {
-					string name = data.GetValue ("name");
+					string name = data.GetValueString ("name");
 					if (name.StartsWith (partialWord))
 						cdata.Items.Add (new CompletionItem (name, ObjectValueFlags.Variable));
 				}
@@ -189,7 +189,7 @@ namespace MonoDevelop.Debugger.Gdb
 				
 				res = session.RunCommand ("-stack-list-arguments", "0", frameIndex.ToString (), frameIndex.ToString ());
 				foreach (ResultData data in res.GetObject ("stack-args").GetObject (0).GetObject ("frame").GetObject ("args")) {
-					string name = data.GetValue ("name");
+					string name = data.GetValueString ("name");
 					if (name.StartsWith (partialWord))
 						cdata.Items.Add (new CompletionItem (name, ObjectValueFlags.Parameter));
 				}
@@ -207,7 +207,7 @@ namespace MonoDevelop.Debugger.Gdb
 				session.SelectThread (threadId);
 				exp = exp.Replace ("\"", "\\\"");
 				GdbCommandResult res = session.RunCommand ("-var-create", "-", "*", "\"" + exp + "\"");
-				string vname = res.GetValue ("name");
+				string vname = res.GetValueString ("name");
 				session.RegisterTempVariableObject (vname);
 				return CreateObjectValue (exp, res);
 			} catch {
@@ -217,9 +217,9 @@ namespace MonoDevelop.Debugger.Gdb
 
 		ObjectValue CreateObjectValue (string name, ResultData data)
 		{
-			string vname = data.GetValue ("name");
-			string typeName = data.GetValue ("type");
-			string value = data.GetValue ("value");
+			string vname = data.GetValueString("name");
+			string typeName = data.GetValueString ("type");
+			string value = data.GetValueString ("value");
 			int nchild = data.GetInt ("numchild");
 			
 			ObjectValue val;
@@ -260,14 +260,14 @@ namespace MonoDevelop.Debugger.Gdb
 				ResultData data = cdata.GetObject (n);
 				ResultData child = data.GetObject ("child");
 				
-				string name = child.GetValue ("exp");
+				string name = child.GetValueString ("exp");
 				if (name.Length > 0 && char.IsNumber (name [0]))
 					name = "[" + name + "]";
 				
 				// C++ structures may contain typeless children named
 				// "public", "private" and "protected".
 				if (child.GetValue("type") == null) {
-					ObjectPath childPath = new ObjectPath (child.GetValue ("name").Split ('.'));
+					ObjectPath childPath = new ObjectPath (child.GetValueString ("name").Split ('.'));
 					ObjectValue[] subchildren = GetChildren (childPath, -1, -1, options);
 					children.AddRange(subchildren);
 				} else {
@@ -302,14 +302,14 @@ namespace MonoDevelop.Debugger.Gdb
 		protected virtual StackFrame CreateFrame (ResultData frameData)
 		{
 			string lang = "Native";
-			string func = frameData.GetValue ("func");
-			string sadr = frameData.GetValue ("addr");
+			string func = frameData.GetValueString ("func");
+			string sadr = frameData.GetValueString ("addr");
 			
 			if (func == "??" && session.IsMonoProcess) {
 				// Try to get the managed func name
 				try {
-					ResultData data = session.RunCommand ("-data-evaluate-expression", "mono_pmip(" + sadr + ")");
-					string val = data.GetValue ("value");
+					var data = session.RunCommand ("-data-evaluate-expression", "mono_pmip(" + sadr + ")");
+					string val = data.GetValueString ("value");
 					if (val != null) {
 						int i = val.IndexOf ('"');
 						if (i != -1) {
@@ -322,15 +322,15 @@ namespace MonoDevelop.Debugger.Gdb
 			}
 
 			int line = -1;
-			string sline = frameData.GetValue ("line");
+			string sline = frameData.GetValueString ("line");
 			if (sline != null)
 				line = int.Parse (sline);
 			
-			string sfile = frameData.GetValue ("fullname");
+			string sfile = frameData.GetValueString ("fullname");
 			if (sfile == null)
-				sfile = frameData.GetValue ("file");
+				sfile = frameData.GetValueString ("file");
 			if (sfile == null)
-				sfile = frameData.GetValue ("from");
+				sfile = frameData.GetValueString ("from");
 			SourceLocation loc = new SourceLocation (func ?? "?", sfile, line);
 			
 			long addr;
@@ -351,7 +351,7 @@ namespace MonoDevelop.Debugger.Gdb
 			DissassemblyBuffer buffer = disBuffers [frameIndex];
 			if (buffer == null) {
 				ResultData data = session.RunCommand ("-stack-info-frame");
-				long addr = long.Parse (data.GetObject ("frame").GetValue ("addr").Substring (2), NumberStyles.HexNumber);
+				long addr = long.Parse (data.GetObject ("frame").GetValueString ("addr").Substring (2), NumberStyles.HexNumber);
 				buffer = new GdbDissassemblyBuffer (session, addr);
 				disBuffers [frameIndex] = buffer;
 			}
@@ -384,11 +384,11 @@ namespace MonoDevelop.Debugger.Gdb
 				ResultData data = session.RunCommand ("-data-disassemble", "-s", startAddr.ToString (), "-e", endAddr.ToString (), "--", "0");
 				ResultData ins = data.GetObject ("asm_insns");
 				
-				AssemblyLine[] alines = new AssemblyLine [ins.Count];
+				var alines = new AssemblyLine [ins.Count];
 				for (int n=0; n<ins.Count; n++) {
 					ResultData aline = ins.GetObject (n);
-					long addr = long.Parse (aline.GetValue ("address").Substring (2), NumberStyles.HexNumber);
-					AssemblyLine line = new AssemblyLine (addr, aline.GetValue ("inst"));
+					long addr = long.Parse (aline.GetValueString ("address").Substring (2), NumberStyles.HexNumber);
+					var line = new AssemblyLine (addr, aline.GetValueString ("inst"));
 					alines [n] = line;
 				}
 				return alines;

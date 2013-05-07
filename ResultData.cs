@@ -48,19 +48,36 @@ namespace MonoDevelop.Debugger.Gdb
 			}
 		}
 		
-		public string GetValue (string name)
+		public object GetValue (string name)
 		{
-			return (string) props [name];
+			return props [name];
+		}
+
+		public string GetValueString(string name)
+		{
+			var o = props [name];
+			return o as string ?? (o == null ? null : o.ToString ());
 		}
 		
 		public int GetInt (string name)
 		{
-			return int.Parse (GetValue (name));
+			return int.Parse (GetValueString (name));
+		}
+
+		public int GetInt (int index)
+		{
+			return int.Parse (GetValueString (index));
 		}
 		
-		public string GetValue (int index)
+		public object GetValue (int index)
 		{
-			return (string) array [index];
+			return array [index];
+		}
+
+		public string GetValueString(int index)
+		{
+			var o = array [index];
+			return o as string ?? (o == null ? null : o.ToString ());
 		}
 		
 		public ResultData GetObject (string name)
