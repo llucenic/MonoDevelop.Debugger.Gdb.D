@@ -24,17 +24,13 @@
 //
 //
 
-using Mono.Debugging.Client;
-using MonoDevelop.Debugger.Gdb;
-
 namespace MonoDevelop.Debugger.Gdb.D
 {
 	public class DGdbSessionFactory : GdbSessionFactory
 	{
-		public override DebuggerSession CreateSession ()
+		public override Mono.Debugging.Client.DebuggerSession CreateSession ()
 		{
-			DGdbSession ds = new DGdbSession ();
-			return ds;
+			return new DGdbSession ();
 		}
 	}
 }

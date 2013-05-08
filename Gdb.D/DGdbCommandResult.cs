@@ -24,10 +24,6 @@
 //
 //
 
-using System.Collections;
-
-using MonoDevelop.Debugger.Gdb;
-
 namespace MonoDevelop.Debugger.Gdb.D
 {
 	class DGdbCommandResult : GdbCommandResult
@@ -37,7 +33,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public void SetProperty (string name, object value)
 		{
 			if (this.props == null)
-				this.props = new Hashtable ();
+				this.props = new System.Collections.Hashtable ();
 
 			this.props[name] = value;
 		}

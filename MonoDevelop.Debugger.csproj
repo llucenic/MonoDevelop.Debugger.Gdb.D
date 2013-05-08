@@ -83,23 +83,28 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MonoDevelop.D\DGdbSession.cs" />
-    <Compile Include="MonoDevelop.D\DGdbSessionFactory.cs" />
-    <Compile Include="MonoDevelop.D\AssemblyInfo.cs" />
-    <Compile Include="MonoDevelop.D\DGdbBacktrace.cs" />
-    <Compile Include="MonoDevelop.D\DGdbCommandResult.cs" />
-    <Compile Include="CommandStatus.cs" />
-    <Compile Include="GdbBacktrace.cs" />
-    <Compile Include="GdbCommandResult.cs" />
-    <Compile Include="GdbEvent.cs" />
-    <Compile Include="GdbSession.cs" />
-    <Compile Include="GdbSessionFactory.cs" />
-    <Compile Include="ResultData.cs" />
-    <Compile Include="MonoDevelop.D\DGdbTools.cs" />
-    <Compile Include="MonoDevelop.D\MemberLookup.cs" />
+    <Compile Include="Gdb\CommandStatus.cs" />
+    <Compile Include="Gdb\GdbBacktrace.cs" />
+    <Compile Include="Gdb\GdbCommandResult.cs" />
+    <Compile Include="Gdb\GdbEvent.cs" />
+    <Compile Include="Gdb\GdbSession.cs" />
+    <Compile Include="Gdb\GdbSessionFactory.cs" />
+    <Compile Include="Gdb\ResultData.cs" />
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Gdb.D\DGdbBacktrace.cs" />
+    <Compile Include="Gdb.D\DGdbCommandResult.cs" />
+    <Compile Include="Gdb.D\DGdbSession.cs" />
+    <Compile Include="Gdb.D\DGdbSessionFactory.cs" />
+    <Compile Include="Gdb.D\DGdbTools.cs" />
+    <Compile Include="Misc\MemberLookup.cs" />
+    <Compile Include="Gdb.D\VariableValueExamination.cs" />
+    <Compile Include="Gdb.D\MemoryExamination.cs" />
+    <Compile Include="Gdb.D\ToStringExamination.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="MonoDevelop.D\Manifest.addin.xml" />
+    <EmbeddedResource Include="Manifest.addin.xml">
+      <LogicalName>MonoDevelop.Debugger.MonoDevelop.D.Manifest.addin.xml</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
@@ -120,5 +125,9 @@
       <Name>MonoDevelop.D</Name>
       <Private>False</Private>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Gdb\" />
+    <Folder Include="Gdb.D\" />
   </ItemGroup>
 </Project>
