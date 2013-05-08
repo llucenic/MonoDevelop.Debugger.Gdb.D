@@ -191,8 +191,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return arrayW;
 		}
 
-		public static string GetStringValue(byte[] array, byte typeToken)
+		public static string GetStringValue(byte[] array, byte typeToken = DTokens.Char)
 		{
+			if (array == null)
+				return null;
 			switch (typeToken) {
 				case DTokens.Char:		return Encoding.UTF8.GetString(array);
 				case DTokens.Wchar:		return Encoding.UTF32.GetString(ConvertWcharToDchar(array));

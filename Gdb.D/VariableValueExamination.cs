@@ -33,6 +33,7 @@ using D_Parser.Resolver.TypeResolution;
 using Mono.Debugging.Backend;
 using Mono.Debugging.Client;
 using MonoDevelop.D.Resolver;
+using System.IO;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
@@ -136,7 +137,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
 		{
-			AbstractType at = null;
+			AbstractType at;
 			bool checkLocation = true;
 			if (exp.Equals(DTokens.GetTokenString(DTokens.This))) {
 				// resolve 'this'
@@ -230,7 +231,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				}
 				else if (dsBase is ArrayType) {
 					// simple array (indexed by int)
-					res.SetProperty("value", AdaptArrayForD(dsBase as ArrayType, exp, ref res));
+					ReadDArray(dsBase as ArrayType, exp, ref res);
 				}
 				else if (dsBase is AssocArrayType) {
 					// associative array
@@ -300,29 +301,35 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 		}
 
-		string AdaptArrayForD(ArrayType arrayType, string exp, ref DGdbCommandResult res)
+		void ReadDArray(ArrayType arrayType, string exp, ref DGdbCommandResult res)
+		{
+			ReadDArray (arrayType, Memory.ReadDArrayHeader (exp), ref res);
+		}
+
+		void ReadDArray(ArrayType arrayType, DArrayStruct arrayInfo, ref DGdbCommandResult res)
 		{
 			var itemType = DResolver.StripMemberSymbols(arrayType.ValueType);
+			var arrayLength = arrayInfo.Length.ToInt64 ();
 
-			long lArrayLength=0;
 			var lValue = new StringBuilder();
 			var lSeparator = "";
 
 			if (itemType is PrimitiveType) {
 				var lArrayType = (itemType as PrimitiveType).TypeToken;
 
-				var lItemSize = DGdbTools.SizeOf(lArrayType);
-
 				// read in raw array bytes
-				var lBytes = Memory.ReadArrayBytes(exp, lItemSize, out lArrayLength);
-				foreach (var b in lBytes)
-					Console.WriteLine ((char)b);
+				var lBytes = Memory.ReadDArrayBytes(arrayInfo, DGdbTools.SizeOf(lArrayType));
+
 				// define local variable value
-				var primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lArrayLength,
+				var primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lBytes.Length,
 				                                                                arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
 
 				if (DGdbTools.IsCharType(lArrayType)) {
 					lValue.Append("\"").Append(DGdbTools.GetStringValue(lBytes, lArrayType)).Append("\"");
+
+					// Do not show every single character!
+					res.SetProperty("numchild", 0);
+					res.SetProperty("children", null);
 				}
 				else {
 					lValue.Append ('[');
@@ -331,96 +338,121 @@ namespace MonoDevelop.Debugger.Gdb.D
 						lSeparator = ", ";
 					}
 					lValue.Append(']');
+
+					res.SetProperty("numchild", lBytes.Length.ToString());
+					res.SetProperty("children", primitiveArrayObjects);
 				}
 
 				res.SetProperty("has_more", "1");
-				res.SetProperty("numchild", lArrayLength.ToString());
-				res.SetProperty("children", primitiveArrayObjects);
-				res.SetProperty("value", lValue);
 			}
 			else if (itemType is ArrayType) {
-
-				// read in array header information (item count and address)
-				var lHeader = Memory.ReadDArrayHeader(exp);
-				lArrayLength = lHeader.Length.ToInt64 ();
-				var firstItem = lHeader.FirstItem.ToInt64 ();
-
 
 				var itemArrayType = itemType as ArrayType;
 
 				const string itemArrayFormatString = "*({0})";
-				var children = new ObjectValue[lArrayLength];
+
+				var children = new ObjectValue[arrayLength];
 
 				DGdbCommandResult iterRes = new DGdbCommandResult(
 					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-				              lArrayLength,
+				              arrayLength,
 				              DGdbTools.AliasStringTypes(itemArrayType.ToString()),
 				              res.GetValue("thread-id")));
 
 				lValue.Append ("[");
-				for (int i = 0; i < lArrayLength; i++) {
+				var firstItem = arrayInfo.FirstItem.ToInt64 ();
+				for (int i = 0; i < arrayLength; i++) {
 					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
-					lValue.Append (AdaptArrayForD(itemArrayType, 
-					                              String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i*2)).ToString()),
-					                              ref iterRes) ?? "null");
+
+					ReadDArray(itemArrayType, 
+					           String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i*2)).ToString()),
+					           ref iterRes);
+
+					lValue.Append(iterRes.GetValueString("value"));
+
 					lSeparator = ", ";
 					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
 				}
 				lValue.Append (']');
 
-				res.SetProperty("value", lValue);
 				res.SetProperty("has_more", "1");
-				res.SetProperty("numchild", lArrayLength);
+				res.SetProperty("numchild", arrayLength);
 				res.SetProperty("children", children);
 			}
 
-			if (lValue.Length < 1)
-				return null;
-
 			// Put the array length in front of the literal
-			if(lArrayLength > 1)
-				lValue.Insert(0,'´').Insert(0,lArrayLength);
+			if(arrayLength > 1)
+				lValue.Insert(0,'´').Insert(0,arrayLength);
 
-			return lValue.ToString();
+			res.SetProperty("value", lValue.ToString());
 		}
 
-		String AdaptObjectForD(string exp, byte[] bytes, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
+		String AdaptObjectForD(string exp, byte[] objectContent, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
 		{
 			var result = Backtrace.DSession.ObjectToStringExam.InvokeToString(exp) ?? res.GetValueString("value");
 
+			if (objectContent == null)
+				throw new ArgumentNullException ("bytes","AdaptObjectForD: exp=" + exp + "; ctype=" + 
+				                                 ctype.ToCode () + "; members.length="+members.Count.ToString()+"\n");
+			/*
+			 * Dump object contents
+			var sb = new StringBuilder ("AdaptObjectForD: exp=");
+			sb.Append (exp).Append("; bytes=");
+			foreach (var b in bytes)
+				sb.AppendFormat ("{0:X} ", b);
+			sb.AppendLine ();
+
+			Backtrace.DSession.LogWriter (false,sb.ToString());
+			*/
 
 			if (ctype != null && string.IsNullOrEmpty(result))
 				result = ctype.TypeDeclarationOf.ToString();
 
-			var currentOffset = IntPtr.Size; // size of a vptr
+			var currentOffset = DGdbTools.CalcOffset(2); // size of a vptr
 			var memberLength = 0;
 
 			if (members.Count > 0) {
 				var memberList = new List<ObjectValue>();
 				foreach (var ds in members) {
+					// Dump member info
+					//Backtrace.DSession.LogWriter (false,"Member "+ds.ToCode()+"\n");
 
 					var ms = ds as MemberSymbol;
 					memberLength = DGdbTools.CalcOffset();
 					if (ms != null) {
 						// member symbol resolution based on its type
-						var at = ms.Base;
+						var unaliasedMemberType = DResolver.StripAliasSymbol(ms.Base);
 
-						if (at is PrimitiveType) {
-							memberLength = DGdbTools.SizeOf((at as PrimitiveType).TypeToken);
-							DGdbCommandResult memberRes = new DGdbCommandResult(
+						if (unaliasedMemberType is PrimitiveType) {
+							memberLength = DGdbTools.SizeOf((unaliasedMemberType as PrimitiveType).TypeToken);
+							var val = DGdbTools.GetValueFunction ((unaliasedMemberType as PrimitiveType).TypeToken) (objectContent, (uint)currentOffset, 1);
+
+							val = AdaptPrimitiveForD(unaliasedMemberType as PrimitiveType, val);
+
+							var memberRes = new DGdbCommandResult(
 								String.Format("^done,value=\"{0}\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-							              DGdbTools.GetValueFunction((at as PrimitiveType).TypeToken)(bytes, (uint)currentOffset, 1),
-							              at, res.GetValue("thread-id")));
-							memberRes.SetProperty("value", AdaptPrimitiveForD(at as PrimitiveType, memberRes.GetValueString("value")));
+							              val, ms.Base, res.GetValue("thread-id")));
 							memberList.Add(CreateObjectValue(ms.Name, memberRes));
 						}
-						else if (at is ArrayType) {
+						else if (unaliasedMemberType is ArrayType) {
+							memberLength = DGdbTools.CalcOffset (2); // Length + FirstItem
 
-							//AdaptArrayForD(at as ArrayType, 
+							using(var mem = new MemoryStream(objectContent,currentOffset, memberLength))
+							using(var br = new BinaryReader(mem))
+							{
+								var ai = new DArrayStruct { 
+									Length = new IntPtr(br.ReadInt64()),
+									FirstItem = new IntPtr(br.ReadInt64()),
+								};
+								var memberRes = new DGdbCommandResult (
+									String.Format("^done,type=\"{0}\",thread-id=\"{1}\"", ms.Base, res.GetValue("thread-id")));
+								ReadDArray (unaliasedMemberType as ArrayType, ai, ref memberRes);
+								memberList.Add (CreateObjectValue(ms.Name, memberRes));
+							}
 						}
-						else if (at is TemplateIntermediateType) {
+						else if (unaliasedMemberType is TemplateIntermediateType) {
 							// instance of struct, union, template, mixin template, class or interface
-							if (at is ClassType) {
+							if (unaliasedMemberType is ClassType) {
 							}
 						}
 					}

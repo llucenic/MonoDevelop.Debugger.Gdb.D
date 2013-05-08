@@ -30,6 +30,7 @@ using D_Parser.Resolver;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
+	// header: array length and memory location (stored as two unsigned ints)
 	public struct DArrayStruct
 	{
 		public IntPtr Length;
@@ -49,27 +50,28 @@ namespace MonoDevelop.Debugger.Gdb.D
 			this.Session = sess;
 		}
 
-		public byte[] ReadArrayBytes (string exp, int itemSize, out long arrayLength)
+		public byte[] ReadDArrayBytes(string arrayHeaderExpression, int itemSize = 1)
 		{
-			// read header: array length and memory location (stored as two unsigned longs)
-			var header = ReadDArrayHeader (exp);
-			if (header.Length.ToInt64 () > 0 && header.FirstItem.ToInt64 () > 0) {
-				arrayLength = header.Length.ToInt64 ();
+			return ReadDArrayBytes (ReadDArrayHeader (arrayHeaderExpression), itemSize);
+		}
 
+		public byte[] ReadDArrayBytes (DArrayStruct arrayInfo, int itemSize = 1)
+		{
+			if (arrayInfo.Length.ToInt64 () > 0 && arrayInfo.FirstItem.ToInt64 () > 0) {
 				// read out the actual array bytes
-				return ReadByteArray (header.FirstItem.ToString (), header.Length.ToInt32 () * itemSize);
+				return ReadByteArray (arrayInfo.FirstItem.ToString (), 
+				                      arrayInfo.Length.ToInt32 () * itemSize);
 			}
-			arrayLength = 0;
 			return new byte[0];
 		}
 
-		public byte[] ReadByteArray (string exp, int count)
+		byte[] ReadByteArray (string exp, int count, int itemSize = 1)
 		{
-			ResultData rawData = ReadGdbMemory (exp, count, sizeof(byte));
+			var rawData = ReadGdbMemory (exp, count*itemSize, itemSize);
 
 			if (rawData != null) {
 				// convert raw data to bytes
-				byte[] lBytes = new byte[count];
+				var lBytes = new byte[count];
 				for (int i = (int)count - 1; i >= 0; --i) {
 					lBytes [i] = byte.Parse (rawData.GetValueString (i));
 				}
@@ -81,7 +83,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public static IntPtr GetIntPtr (ResultData d, int dataIndex = 0)
 		{
 			if (IntPtr.Size == 4)
-				return new IntPtr (Convert.ToInt32 (d.GetValue (dataIndex)));
+				return new IntPtr (d.GetInt (dataIndex));
 			else if (IntPtr.Size == 8)
 				return new IntPtr (Convert.ToInt64 (d.GetValue (dataIndex)));
 
@@ -90,6 +92,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public DArrayStruct ReadDArrayHeader (string exp)
 		{
+			// @0 : Array length
+			// @1 : First item
 			var rawData = ReadGdbMemory ("\"(unsigned int[])" + exp + "\"", 2, IntPtr.Size);
 
 			if (rawData != null && rawData.Count == 2) {
@@ -126,30 +130,40 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public byte[] ReadObjectBytes (string exp, out TemplateIntermediateType ctype, ResolutionContext resolutionCtx)
 		{
-			Session.LogWriter (false, "ReadObjectBytes: " + exp + "\n");
 			ctype = null;
 
-			// we read the object's length
-			int length;
-			if (!Read ("\"**(unsigned int*)(" + exp + ") + " + IntPtr.Size + "\"", out length)) {
-				Session.LogWriter (false, "Object length couldn't be read. Return.\n");
+			// read the object's length
+			// It's stored in obj.classinfo.init.length
+			// See http://dlang.org/phobos/object.html#.TypeInfo_Class
+			IntPtr objectSize;
+			if (!Read ("\"**(unsigned int*)(" + exp + ") + " + DGdbTools.CalcOffset(2) + "\"", out objectSize)) {
+				Session.LogWriter (false, "Object (exp=\""+exp+"\") length couldn't be read. Return.\n");
 				return new byte[0];
 			}
 
-			Session.LogWriter (false, "Object length = " + length + "\n");
+			if(objectSize.ToInt64()<1)
+				Session.LogWriter (false, "Object (exp=\""+exp+"\").classinfo.init.length equals 0!\n");
 
-			// we read the object's byte data
-			byte[] lBytes = ReadByteArray (exp, length);
+			// read out the raw object contents
+			var lBytes = ReadByteArray (exp, objectSize.ToInt32());
 
 			// read the dynamic type of the instance:
 			// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-			long nameLength;
-			byte[] nameBytes = ReadArrayBytes ("***(unsigned int*)(" + exp + ") + " + IntPtr.Size, DGdbTools.SizeOf (DTokens.Char), out nameLength);
-			String sType = DGdbTools.GetStringValue (nameBytes, DTokens.Char);
+			// == obj.classinfo.name
+			var nameBytes = ReadDArrayBytes("***(unsigned int*)(" + exp + ") + " + DGdbTools.CalcOffset(1));
+			var sType = DGdbTools.GetStringValue (nameBytes);
 
+			// Try to resolve the abstract type and establish a connection between physical and virtual data spheres
 			DToken optToken;
-			ctype = TypeDeclarationResolver.ResolveSingle (DParser.ParseBasicType (sType, out optToken), resolutionCtx) as TemplateIntermediateType;
-
+			var bt = DParser.ParseBasicType (sType, out optToken);
+			var t = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx);
+			if(t == null)
+			{
+				Session.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+sType+"\n");
+				Session.LogWriter (false,"Ctxt: "+resolutionCtx.ScopedBlock.ToString()+"\n");
+				Session.LogWriter (false,"Resolved Type: "+(t == null ? "null" : t.ToCode())+"\n---------\n");
+			}
+			ctype = t as TemplateIntermediateType;
 			return lBytes;
 		}
 
@@ -157,7 +171,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			// first we need to get the right offset of the impmlemented interface address within object instance
 			// this is located in object.Interface instance referenced by twice dereferencing the exp
-			if (!Read ("\"**(unsigned int*)(" + exp + ") + 12\"", out offset)) {
+			if (!Read ("\"**(unsigned int*)(" + exp + ") + 12\"", out offset)) {  // Where comes the 12 from??
 				ctype = null;
 				return new byte[0];
 			}

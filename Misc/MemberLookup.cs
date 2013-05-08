@@ -21,7 +21,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public static List<DSymbol> ListMembers(TemplateIntermediateType tiType, ResolutionContext ctx)
 		{
 			var lMembers = MemberLookup.GetMembers(tiType, ctx);
-			List<DSymbol> members = new List<DSymbol>();
+			var members = new List<DSymbol>();
 			if (lMembers != null && lMembers.Length > 0) {
 				foreach (var kvp in lMembers) {
 					if (kvp.Value != null && kvp.Value.Length > 0) {
