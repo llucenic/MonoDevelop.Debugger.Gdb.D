@@ -101,10 +101,14 @@
     <Compile Include="Gdb.D\VariableValueExamination.cs" />
     <Compile Include="Gdb.D\MemoryExamination.cs" />
     <Compile Include="Gdb.D\ToStringExamination.cs" />
+    <Compile Include="Misc\ArrayConversionHelpers.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Manifest.addin.xml">
       <LogicalName>MonoDevelop.Debugger.MonoDevelop.D.Manifest.addin.xml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Gdb.D\toString_Linux_x64.txt">
+      <LogicalName>toString_Linux_x64</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

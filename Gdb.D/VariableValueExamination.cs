@@ -161,12 +161,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 			string type = null;
 
 			if (at is DSymbol) {
-				DSymbol ds = at as DSymbol;
+				var ds = at as DSymbol;
 				if (checkLocation == true && (ds.Definition == null || ds.Definition.EndLocation > this.codeLocation)) {
 					// we by-pass variables not declared so far, thus skipping not initialized variables
 					return null;
 				}
-				AbstractType dsBase = ds.Base;
+				var dsBase = ds.Base;
 				if (dsBase is AliasedType) {
 					// unalias aliased types
 					dsBase = DResolver.StripMemberSymbols(dsBase);
@@ -192,7 +192,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 					if (dsBase is ClassType) {
 						// read in the object bytes
-						byte[] bytes = Memory.ReadObjectBytes(exp, out ctype, resolutionCtx);
+						var bytes = Memory.ReadObjectBytes(exp, out ctype, resolutionCtx);
 
 						var members = MemberLookup.ListMembers(ctype, resolutionCtx);
 
@@ -271,7 +271,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			if (isParam == false) {
 				// resolve block members
-				DSymbol ds = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null) as DSymbol;
+				var ds = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null) as DSymbol;
 				res.SetProperty("type", dynamicType ?? ds.Definition.Type.ToString());
 			}
 		}
@@ -279,11 +279,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 		static string AdaptPrimitiveForD(PrimitiveType pt, string aValue, bool asHex = false)
 		{
 			byte typeToken = pt.TypeToken;
-			DGdbTools.ValueFunction getValue = DGdbTools.GetValueFunction(typeToken);
+			var getValue = DGdbTools.GetValueFunction(typeToken);
 
 			switch (typeToken) {
 				case DTokens.Char:
-				string[] charValue = aValue.Split(new char[]{' '});
+				var charValue = aValue.Split(new char[]{' '});
 				return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
 
 				case DTokens.Wchar:
@@ -319,7 +319,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var lArrayType = (itemType as PrimitiveType).TypeToken;
 
 				// read in raw array bytes
-				var lBytes = Memory.ReadDArrayBytes(arrayInfo, DGdbTools.SizeOf(lArrayType));
+				byte[] lBytes;
+				Memory.Read(arrayInfo, out lBytes, DGdbTools.SizeOf(lArrayType));
 				
 				if (DGdbTools.IsCharType(lArrayType)) {
 					lValue.Append("\"").Append(DGdbTools.GetStringValue(lBytes, lArrayType)).Append("\"");

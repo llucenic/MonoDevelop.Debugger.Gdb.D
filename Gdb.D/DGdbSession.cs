@@ -136,16 +136,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return new Backtrace (bt);
 		}
 
-		protected override void OnRun (DebuggerStartInfo startInfo)
-		{
-			base.OnRun (startInfo);
-
-			try {
-				 ObjectToStringExam.InjectToStringCode ();
-			} catch { // It is normal to fail here, for example if the program has already finished
-			}
-		}
-
 		protected override void FireTargetEvent (TargetEventType type, ResultData curFrame)
 		{
 			UpdateHitCountData ();

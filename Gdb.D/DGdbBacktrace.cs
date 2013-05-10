@@ -144,7 +144,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		protected override ObjectValue CreateVarObject(string exp)
 		{
-			//try {
+			try {
 				session.SelectThread(threadId);
 				exp = exp.Replace("\"", "\\\"");
 				var res = DSession.RunCommand("-var-create", "-", "*", "\"" + exp + "\"") as DGdbCommandResult;
@@ -152,11 +152,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var vname = res.GetValueString("name");
 				session.RegisterTempVariableObject(vname);
 				return Variables.CreateObjectValue(exp, Variables.AdaptVarObjectForD(exp, res/*, resAddr.GetValue("value")*/));
-			/*}
+			}
 			catch (Exception e) {
 				// just for debugging purposes
 				return ObjectValue.CreateUnknown(exp + " - Gdb.D Exception: " + e.Message);
-			}*/
+			}
 		}
 
 		/// <summary>
