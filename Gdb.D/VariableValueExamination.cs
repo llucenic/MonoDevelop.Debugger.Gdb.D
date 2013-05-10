@@ -175,7 +175,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 				if (dsBase is PrimitiveType) {
 					// primitive type
 					// we adjust only wchar and dchar
-					res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValueString("value")));
+					res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValueString("value"), 
+					                                            Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat==IntegerDisplayFormat.Hexadecimal));
 				}
 				else if (dsBase is PointerType) {
 					string sValue = res.GetValueString("value");
@@ -275,7 +276,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 		}
 
-		static string AdaptPrimitiveForD(PrimitiveType pt, string aValue)
+		static string AdaptPrimitiveForD(PrimitiveType pt, string aValue, bool asHex = false)
 		{
 			byte typeToken = pt.TypeToken;
 			DGdbTools.ValueFunction getValue = DGdbTools.GetValueFunction(typeToken);
@@ -283,16 +284,16 @@ namespace MonoDevelop.Debugger.Gdb.D
 			switch (typeToken) {
 				case DTokens.Char:
 				string[] charValue = aValue.Split(new char[]{' '});
-				return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, (uint)DGdbTools.SizeOf(typeToken));
+				return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
 
 				case DTokens.Wchar:
 				uint lValueAsUInt = uint.Parse(aValue);
 				lValueAsUInt &= 0x0000FFFF;
-				return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken));
+				return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
 
 				case DTokens.Dchar:
 				lValueAsUInt = uint.Parse(aValue);
-				return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken));
+				return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
 
 				default:
 				/*lValueAsUInt = ulong.Parse(lValue);
@@ -425,9 +426,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 						if (unaliasedMemberType is PrimitiveType) {
 							memberLength = DGdbTools.SizeOf((unaliasedMemberType as PrimitiveType).TypeToken);
-							var val = DGdbTools.GetValueFunction ((unaliasedMemberType as PrimitiveType).TypeToken) (objectContent, (uint)currentOffset, 1);
+							var val = DGdbTools.GetValueFunction ((unaliasedMemberType as PrimitiveType).TypeToken) (objectContent, (uint)currentOffset, 1,
+							                                                                                         Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal);
 
-							val = AdaptPrimitiveForD(unaliasedMemberType as PrimitiveType, val);
+							val = AdaptPrimitiveForD(unaliasedMemberType as PrimitiveType, val,
+							                         Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat==IntegerDisplayFormat.Hexadecimal);
 
 							var memberRes = new DGdbCommandResult(
 								String.Format("^done,value=\"{0}\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
@@ -484,7 +487,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					String itemParseString = String.Format(
 						"^done,name=\"{0}.[{1}]\",numchild=\"{2}\",value=\"{3}\",type=\"{4}\",thread-id=\"{5}\",has_more=\"{6}\"",
 						res.GetValue("name"), i, 0,
-						DGdbTools.GetValueFunction(typeToken)(array, i, (uint)lItemSize),
+						DGdbTools.GetValueFunction(typeToken)(array, i, (uint)lItemSize, Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal),
 						arrayType.ValueType, res.GetValue("thread-id"), 0);
 					items[i] = CreateObjectValue(String.Format("[{0}]", i), new DGdbCommandResult(itemParseString));
 				}

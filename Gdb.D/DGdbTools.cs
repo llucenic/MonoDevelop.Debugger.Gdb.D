@@ -72,24 +72,30 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return arrayType.Equals(DTokens.Char) || arrayType.Equals(DTokens.Wchar) || arrayType.Equals(DTokens.Dchar);
 		}
 
-		public delegate string ValueFunction(byte[] array, uint i, uint itemSize);
+		public delegate string ValueFunction(byte[] array, uint i, uint itemSize, bool hex);
 
-		static string GetBoolValue  (byte[] array, uint i, uint itemSize) { return BitConverter.ToBoolean(array, (int)(i * itemSize)) ? Boolean.TrueString : Boolean.FalseString; }
+		static string ToString2(object o, bool hex, int padLength)
+		{
+			return hex ? String.Format ("0x{0:x"+padLength.ToString()+"}", o) : o.ToString ();
+		}
 
-		static string GetByteValue  (byte[] array, uint i, uint itemSize) { return ((sbyte)array[i]).ToString(); }
-		static string GetUbyteValue (byte[] array, uint i, uint itemSize) { return array[i].ToString(); }
+		static string GetBoolValue  (byte[] array, uint i, uint itemSize, bool hex) { return BitConverter.ToBoolean(array, (int)(i * itemSize)) ? Boolean.TrueString : Boolean.FalseString; }
 
-		static string GetShortValue (byte[] array, uint i, uint itemSize) { return BitConverter.ToInt16 (array, (int)(i * itemSize)).ToString(); }
-		static string GetIntValue   (byte[] array, uint i, uint itemSize) { return BitConverter.ToInt32 (array, (int)(i * itemSize)).ToString(); }
-		static string GetLongValue  (byte[] array, uint i, uint itemSize) { return BitConverter.ToInt64 (array, (int)(i * itemSize)).ToString(); }
-		static string GetUshortValue(byte[] array, uint i, uint itemSize) { return BitConverter.ToUInt16(array, (int)(i * itemSize)).ToString(); }
-		static string GetUintValue  (byte[] array, uint i, uint itemSize) { return BitConverter.ToUInt32(array, (int)(i * itemSize)).ToString(); }
-		static string GetUlongValue (byte[] array, uint i, uint itemSize) { return BitConverter.ToUInt64(array, (int)(i * itemSize)).ToString(); }
+		static string GetByteValue  (byte[] array, uint i, uint itemSize, bool hex) { return ToString2((sbyte)array[i], hex, 2); }
+		static string GetUbyteValue (byte[] array, uint i, uint itemSize, bool hex) { return ToString2(array[i], hex, 2); }
 
-		static string GetFloatValue (byte[] array, uint i, uint itemSize) { return BitConverter.ToSingle(array, (int)(i * itemSize)).ToString(); }
-		static string GetDoubleValue(byte[] array, uint i, uint itemSize) { return BitConverter.ToDouble(array, (int)(i * itemSize)).ToString(); }
+		static string GetShortValue (byte[] array, uint i, uint itemSize, bool hex) { return ToString2(BitConverter.ToInt16 (array, (int)(i * itemSize)), hex, 4); }
+		static string GetIntValue   (byte[] array, uint i, uint itemSize, bool hex) { return ToString2(BitConverter.ToInt32 (array, (int)(i * itemSize)), hex, 8); }
+		static string GetLongValue  (byte[] array, uint i, uint itemSize, bool hex) { return ToString2(BitConverter.ToInt64 (array, (int)(i * itemSize)), hex, 16); }
 
-		static string GetRealValue (byte[] array, uint i, uint itemSize)
+		static string GetUshortValue(byte[] array, uint i, uint itemSize, bool hex) { return ToString2(BitConverter.ToUInt16 (array, (int)(i * itemSize)), hex, 4); }
+		static string GetUintValue  (byte[] array, uint i, uint itemSize, bool hex) { return ToString2(BitConverter.ToUInt32 (array, (int)(i * itemSize)), hex, 8); }
+		static string GetUlongValue (byte[] array, uint i, uint itemSize, bool hex) { return ToString2(BitConverter.ToUInt64 (array, (int)(i * itemSize)), hex, 16); }
+
+		static string GetFloatValue (byte[] array, uint i, uint itemSize, bool hex) { return BitConverter.ToSingle(array, (int)(i * itemSize)).ToString(); }
+		static string GetDoubleValue(byte[] array, uint i, uint itemSize, bool hex) { return BitConverter.ToDouble(array, (int)(i * itemSize)).ToString(); }
+
+		static string GetRealValue (byte[] array, uint i, uint itemSize, bool hex)
 		{
 			// method converts real precision (80bit) to double precision (64bit)
 			// since c# does not natively support real precision variables
@@ -139,12 +145,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 		}
 
 
-		static string FormatCharValue(char aChar, uint aValue, uint aSize)
+		static string FormatCharValue(char aChar, bool hex, uint aSize)
 		{
-			return String.Format("'{0}' 0x{1:X" + aSize*2 + "} ({1})", aChar, aValue);
+			return hex ? String.Format("0x{1:x" + aSize*2 + "}", (uint)aChar) : aChar.ToString();
 		}
 
-		static string GetCharValue (byte[] array, uint i, uint itemSize)
+		static string GetCharValue (byte[] array, uint i, uint itemSize, bool hex)
 		{
 			char[] chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), 1);
 			if ((uint)chars[0] == 0xFFFD) {
@@ -156,39 +162,20 @@ namespace MonoDevelop.Debugger.Gdb.D
 				}
 				else {
 					// code point is resolved correctly
-					return FormatCharValue(chars[0], (uint)chars[0], itemSize) + " (multi-code point)";
+					return FormatCharValue(chars[0], hex, itemSize) + " (multi-code point)";
 				}
 			}
-			return FormatCharValue(chars[0], (uint)chars[0], itemSize);
+			return FormatCharValue(chars[0], hex, itemSize);
 		}
-		static string GetWcharValue(byte[] array, uint i, uint itemSize)
+		static string GetWcharValue(byte[] array, uint i, uint itemSize, bool hex)
 		{
-			// we use utf-32 encoding function, because there is no utf-16 support,
-			// so we pad here the higher two bytes with zeros
-			byte[] lBytesW = new byte[4];
-			uint offset = i*itemSize;
-			lBytesW[0] = array[offset];
-			lBytesW[1] = array[offset + 1];
-			lBytesW[2] = lBytesW[3] = 0;
-
-			char[] chars = Encoding.UTF32.GetChars(lBytesW, 0, 4);
-			return FormatCharValue(chars[0], (uint)chars[0], itemSize);
+			char[] chars = Encoding.Unicode.GetChars(array, (int)(i*itemSize), (int)itemSize);
+			return FormatCharValue(chars[0], hex, itemSize);
 		}
-		static string GetDcharValue(byte[] array, uint i, uint itemSize)
+		static string GetDcharValue(byte[] array, uint i, uint itemSize, bool hex)
 		{
 			char[] chars = Encoding.UTF32.GetChars(array, (int)(i*itemSize), (int)itemSize);
-			return FormatCharValue(chars[0], (uint)chars[0], itemSize);
-		}
-
-		static byte[] ConvertWcharToDchar(byte[] array)
-		{
-			byte[] arrayW = new byte[2 * array.Length];
-			for (int i = 0; i < array.Length / 2; i++) {
-				arrayW[4*i] = array[2*i];
-				arrayW[4*i + 1] = array[2*i + 1];
-				arrayW[4*i + 2] = arrayW[4*i + 3] = 0;
-			}
-			return arrayW;
+			return FormatCharValue(chars[0], hex, itemSize);
 		}
 
 		public static string GetStringValue(byte[] array, byte typeToken = DTokens.Char)
@@ -196,10 +183,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (array == null)
 				return null;
 			switch (typeToken) {
+				default:
 				case DTokens.Char:		return Encoding.UTF8.GetString(array);
-				case DTokens.Wchar:		return Encoding.UTF32.GetString(ConvertWcharToDchar(array));
+				case DTokens.Wchar:		return Encoding.Unicode.GetString(array);
 				case DTokens.Dchar:		return Encoding.UTF32.GetString(array);
-				default:				return Encoding.UTF8.GetString(array);
 			}
 		}
 

@@ -151,7 +151,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 				//DGdbCommandResult resAddr = DSession.RunCommand("-var-create", "-", "*", "\"&" + exp + "\"") as DGdbCommandResult;
 				var vname = res.GetValueString("name");
 				session.RegisterTempVariableObject(vname);
-
 				return Variables.CreateObjectValue(exp, Variables.AdaptVarObjectForD(exp, res/*, resAddr.GetValue("value")*/));
 			/*}
 			catch (Exception e) {
