@@ -25,12 +25,13 @@
     </Execution>
     <CustomCommands>
       <CustomCommands>
-        <Command type="Execute" command="/opt/mono/bin/monodevelop" workingdir="" externalConsole="True" />
+        <Command type="Execute" command="/opt/mono/lib/monodevelop/bin/MonoDevelop.exe" workingdir="" />
       </CustomCommands>
     </CustomCommands>
     <EnvironmentVariables>
       <EnvironmentVariables>
         <Variable name="MONODEVELOP_DISPATCH_DEBUG " value="1" />
+        <Variable name="LD_LIBRARY_PATH" value="/opt/mono/lib:$LD_LIBRARY_PATH" />
       </EnvironmentVariables>
     </EnvironmentVariables>
   </PropertyGroup>
