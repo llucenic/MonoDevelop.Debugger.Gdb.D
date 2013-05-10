@@ -319,11 +319,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// read in raw array bytes
 				var lBytes = Memory.ReadDArrayBytes(arrayInfo, DGdbTools.SizeOf(lArrayType));
-
-				// define local variable value
-				var primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lBytes.Length,
-				                                                                arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
-
+				
 				if (DGdbTools.IsCharType(lArrayType)) {
 					lValue.Append("\"").Append(DGdbTools.GetStringValue(lBytes, lArrayType)).Append("\"");
 
@@ -332,6 +328,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 					res.SetProperty("children", null);
 				}
 				else {
+					// define local variable value
+					var primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lBytes.Length,
+						                                                            arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
+
 					lValue.Append ('[');
 					foreach (ObjectValue ov in primitiveArrayObjects) {
 						lValue.Append(lSeparator).Append(ov.Value);
@@ -464,7 +464,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 						}
 					}
 					// TODO: use alignof property instead of constant
-					currentOffset += memberLength % IntPtr.Size == 0 ? memberLength : ((memberLength / IntPtr.Size) + 1) * IntPtr.Size;
+					currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
 				}
 				res.SetProperty("children", memberList.ToArray());
 				res.SetProperty("numchild", memberList.Count.ToString());
