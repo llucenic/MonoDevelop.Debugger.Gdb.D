@@ -29,6 +29,39 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
+/*
+ * TODO: Ensure that an Exception thrown in toString() under Linux won't break the gdb execution.
+ * Therefore one could hack _d_throwc
+ * https://github.com/D-Programming-Language/druntime/blob/master/src/rt/deh2.d#L213
+ * or provide an artificial DHandlerTable entry in _D2rt4deh213__eh_finddataFPvZPyS2rt4deh29FuncTable
+ * @ https://github.com/D-Programming-Language/druntime/blob/master/src/rt/deh2.d#L124
+ * ,so in the case there is an exception handler somewhere deeper in the object's toString function
+ * it'll act normal - but otherwise, don't let the exception be passed to the system and
+ * hack in a custom handler which redirects to the catch block inside the injected function!
+ * 
+ * 1) Hack in a return of the custom handler table inside the said __eh_finddata(void *address) method (first x64)
+ * 
+ * - find the location of the "return null;" at
+ * 4239ed:	48 31 c0             	xor    %rax,%rax
+ * 4239f0:	48 8b e5             	mov    %rbp,%rsp
+ * 4239f3:	5d                   	pop    %rbp
+ * 4239f4:	c3                   	retq   
+ * 4239f5:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+ * 
+ * - and put in a "return $handlerTableAddress;" instead
+ * mov $handlerTblAddress,%rax
+ *  		48 b8 ce fa ed fe ff ff ff ff 	movabs $0xfffffffffeedface,%rax
+ * 			48 8b e5				mov %rbp,%rsp
+ * 			5d 						pop %rbp
+ * 			c3 						retq
+ * 
+ * 2) Fill the handlerTableData with all the required information
+ * -- Are there different struct layouts to pay attention to!??
+ * -- It'll be required to determine the offset of the catch block relative to the start of the function -- extra notes in the code in the assembly resources are required which work as markers!
+ * 
+ * 3) Test if it explodes ;-)
+ */
+
 namespace MonoDevelop.Debugger.Gdb.D
 {
 	class ToStringExamination
