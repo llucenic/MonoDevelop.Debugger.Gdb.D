@@ -41,9 +41,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 		static readonly string[] InjectCommands;
 		static readonly string InvokeCommand;
 		static readonly string HelperVariableAllocCommand;
-		const string InjectedToStringMethodId = "toStr";
-		const string InjectedToStringHelperVarPtrId = "toStrPtr";
-		static Regex DisasmLineRegex = new Regex ("^( )*([0-9a-f])+:\\t(?<instr>([0-9a-f]{2} )+)\\s+", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+		const string ToStringMethodId = "toStr";
+		const string HelperVarId = "toStrHelper";
+		const int StringBufferSize=128;
+		const int HelpVarLength = 4 + 4 + StringBufferSize; // return length + isException + buffer
+		static Regex DisasmLineRegex = new Regex ("^( )*([0-9a-f])+:\\t(?<instr>([0-9a-f]{2} )+)\\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 		#endregion
 
 		#region Init/Constructors
@@ -92,38 +94,38 @@ namespace MonoDevelop.Debugger.Gdb.D
 			InjectCommands = new string[2];
 
 			// Construct mem allocation command
-			tempStringBuilder.Append ("set $").Append (InjectedToStringMethodId)
-				.Append (" = mmap(0,").Append (assemblerInstructions.Length / 2).Append (",7,0x20|0x2,-1,0)");
+			tempStringBuilder.Append ("set $").Append (ToStringMethodId)
+				.Append ("=mmap(0,").Append (assemblerInstructions.Length / 2).Append (",7,0x20|0x2"); // PROT_READ|PROT_WRITE|PROT_EXEC -- HACK: Accept W^X-Policy on some systems
+			if (Environment.Is64BitOperatingSystem)
+				tempStringBuilder.Append ("|0x40"); // MAP_32BIT
+			tempStringBuilder.Append(",-1,0)");
 			InjectCommands [0] = tempStringBuilder.ToString ();
 			tempStringBuilder.Clear ();
 
 			// Construct filling commands
-			tempStringBuilder.Append("-data-write-memory-bytes $").Append(InjectedToStringMethodId).Append(' ');
+			tempStringBuilder.Append("-data-write-memory-bytes $").Append(ToStringMethodId).Append(' ');
 			assemblerInstructions.Insert (0, tempStringBuilder);
 			InjectCommands [1] = assemblerInstructions.ToString ();
+			tempStringBuilder.Clear ();
+
+			// Construct mprotect command to activate executability
+			//tempStringBuilder.Append ("call mprotect($").Append(InjectedToStringMethodId).Append(",").Append((assemblerInstructions.Length/2).ToString()).Append(",4)");
+			//InjectCommands [2] = tempStringBuilder.ToString ();
 
 			// Prepare the execution command
-			InvokeCommand = new StringBuilder ("call $")
-				.Append (InjectedToStringMethodId)
-				.Append ("({0},$") // Object o
-			// char** firstChar
-				.Append (InjectedToStringHelperVarPtrId)
-			// int* length
-				.Append (",$").Append (InjectedToStringHelperVarPtrId).Append ('+').Append (DGdbTools.CalcOffset (1))
-			// bool* isException
-				.Append (",$").Append (InjectedToStringHelperVarPtrId).Append ('+').Append (DGdbTools.CalcOffset (2))
-				.Append (')')
-				.ToString ();
+			InvokeCommand = "set *$"+HelperVarId+"=$"+ToStringMethodId+
+				"({0},$"+HelperVarId+"+8"+
+				","+StringBufferSize.ToString()+
+				",$"+HelperVarId+"+4)";
 
 
 			// Prepare the helper variable allocation command
-			HelperVariableAllocCommand = "set $" + InjectedToStringHelperVarPtrId + " = malloc(" + DGdbTools.CalcOffset (3) + ")";
+			HelperVariableAllocCommand = "set $" + HelperVarId + " = malloc(" + HelpVarLength.ToString() + ")";
 		}
 		#endregion
 
 		public bool InjectToStringCode ()
 		{
-			return false;
 			if (IsInjected || !InjectionSupported)
 				return false;
 
@@ -148,17 +150,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			// step 2: inject the reassembled code that already has been prepared
 			try{
-			foreach (var cmd in InjectCommands) {
-				if (!string.IsNullOrWhiteSpace(cmd)){
-					res = Session.RunCommand (cmd);
-					if (res.Status != CommandStatus.Done) {
-						return false;
+				foreach (var cmd in InjectCommands) {
+					if (!string.IsNullOrWhiteSpace(cmd)){
+						res = Session.RunCommand (cmd);
+						if (res.Status != CommandStatus.Done) {
+							return false;
+						}
 					}
 				}
-			}
 
-			IsInjected = true;
-			return true;
+				IsInjected = true;
+				return true;
 			}catch(Exception ex) {
 				return false;
 			}
@@ -181,26 +183,29 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return null;
 
 			// execute the injected toString() through the invoke method
-			var res = Session.RunCommand (string.Format (InvokeCommand, exp));
+			GdbCommandResult res;
+			try{
+				res = Session.RunCommand (string.Format (InvokeCommand, "(int*)"+exp));
+			}catch(Exception ex) {
+				Session.LogWriter (true, "Exception while running injected toString method for '" + exp + "': " + ex.Message);
+				return null;
+			}
 
 			if (res.Status == CommandStatus.Error) {
-				throw new Exception ("Exception while running injected toString method for '" + exp + "': " + res.ErrorMessage);
+				Session.LogWriter (true, "Exception while running injected toString method for '" + exp + "': " + res.ErrorMessage);
+				return null;
 			}
 
 			// read in the indirectly returned data
-			IntPtr[] ptr;
-			if (!Session.Memory.Read ("$" + InjectedToStringHelperVarPtrId, 3, out ptr))
+			byte[] returnData;
+			if (!Session.Memory.Read ("$" + HelperVarId, HelpVarLength, out returnData))
 				throw new InvalidDataException ("Couldn't read returned toString meta data (exp=" + exp + ")");
 
-			int stringLength = ptr [1].ToInt32 ();
-			bool hadException = ptr [2].ToInt32 () != 0;
+			var stringLength = BitConverter.ToUInt32(returnData,0);
+			bool hadException = BitConverter.ToInt32(returnData, 4) != 0;
 
 			// Read the actual string
-			string stringResult;
-			if (stringLength < 1)
-				stringResult = string.Empty;
-			else 
-				Session.Memory.Read("*$" + InjectedToStringHelperVarPtrId, stringLength, out stringResult);
+			var stringResult = Encoding.UTF8.GetString (returnData, 8, (int)stringLength);
 
 			if (hadException)
 				return "Exception in " + exp + ".toString(): " + stringResult;

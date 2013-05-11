@@ -2,86 +2,122 @@
 This code was extracted via objdump -S -d bin/Debug/toStringdisas > dump.txt
 Only lines that contain the absolute address and assembler instructions will be taken
 
-extern(C) export void toStr(Object o, char** firstChar, int* length, bool* isException)
-  401ff4:	55                   	push   %rbp
-  401ff5:	48 8b ec             	mov    %rsp,%rbp
-  401ff8:	48 83 ec 48          	sub    $0x48,%rsp
-  401ffc:	53                   	push   %rbx
-  401ffd:	41 54                	push   %r12
-  401fff:	41 55                	push   %r13
-  402001:	41 56                	push   %r14
-  402003:	41 57                	push   %r15
-  402005:	48 89 7d e0          	mov    %rdi,-0x20(%rbp)
-  402009:	48 89 75 e8          	mov    %rsi,-0x18(%rbp)
-  40200d:	48 89 55 f0          	mov    %rdx,-0x10(%rbp)
-  402011:	48 89 4d f8          	mov    %rcx,-0x8(%rbp)
+extern(C) export uint toStr(Object o, char* buffer, uint bufferLength, bool* isException)
+  4028ac:	55                   	push   %rbp
+  4028ad:	48 8b ec             	mov    %rsp,%rbp
+  4028b0:	48 83 ec 58          	sub    $0x58,%rsp
+  4028b4:	53                   	push   %rbx
+  4028b5:	41 54                	push   %r12
+  4028b7:	41 55                	push   %r13
+  4028b9:	41 56                	push   %r14
+  4028bb:	41 57                	push   %r15
+  4028bd:	48 89 7d e0          	mov    %rdi,-0x20(%rbp)
+  4028c1:	48 89 75 e8          	mov    %rsi,-0x18(%rbp)
+  4028c5:	89 55 f0             	mov    %edx,-0x10(%rbp)
+  4028c8:	48 89 4d f8          	mov    %rcx,-0x8(%rbp)
 {
+	if(o is null || buffer is null || bufferLength <= 0 || isException is null)
+  4028cc:	48 83 7d e0 00       	cmpq   $0x0,-0x20(%rbp)
+  4028d1:	74 14                	je     4028e7 <toStr+0x3b>
+  4028d3:	48 83 7d e8 00       	cmpq   $0x0,-0x18(%rbp)
+  4028d8:	74 0d                	je     4028e7 <toStr+0x3b>
+  4028da:	83 7d f0 00          	cmpl   $0x0,-0x10(%rbp)
+  4028de:	74 07                	je     4028e7 <toStr+0x3b>
+  4028e0:	48 83 7d f8 00       	cmpq   $0x0,-0x8(%rbp)
+  4028e5:	75 0d                	jne    4028f4 <toStr+0x48>
+		return 0;
+  4028e7:	31 c0                	xor    %eax,%eax
+  4028e9:	41 5f                	pop    %r15
+  4028eb:	41 5e                	pop    %r14
+  4028ed:	41 5d                	pop    %r13
+  4028ef:	41 5c                	pop    %r12
+  4028f1:	5b                   	pop    %rbx
+  4028f2:	c9                   	leaveq 
+  4028f3:	c3                   	retq   
+
 	string s;
-  402015:	48 c7 45 c0 00 00 00 	movq   $0x0,-0x40(%rbp)
-  40201c:	00 
-  40201d:	48 c7 45 c8 00 00 00 	movq   $0x0,-0x38(%rbp)
-  402024:	00 
+  4028f4:	48 c7 45 b0 00 00 00 	movq   $0x0,-0x50(%rbp)
+  4028fb:	00 
+  4028fc:	48 c7 45 b8 00 00 00 	movq   $0x0,-0x48(%rbp)
+  402903:	00 
 	try{
 		s = o.toString();
-  402025:	48 8b 7d e0          	mov    -0x20(%rbp),%rdi
-  402029:	48 8b 07             	mov    (%rdi),%rax
-  40202c:	48 ff 50 08          	rex.W callq *0x8(%rax)
-  402030:	48 89 45 c0          	mov    %rax,-0x40(%rbp)
-  402034:	48 89 55 c8          	mov    %rdx,-0x38(%rbp)
+  402904:	48 8b 7d e0          	mov    -0x20(%rbp),%rdi
+  402908:	48 8b 0f             	mov    (%rdi),%rcx
+  40290b:	48 ff 51 08          	rex.W callq *0x8(%rcx)
+  40290f:	48 89 45 b0          	mov    %rax,-0x50(%rbp)
+  402913:	48 89 55 b8          	mov    %rdx,-0x48(%rbp)
 		*isException = false;
-  402038:	48 8b 4d f8          	mov    -0x8(%rbp),%rcx
-  40203c:	c6 01 00             	movb   $0x0,(%rcx)
-  40203f:	eb 1b                	jmp    40205c <toStr+0x68>
+  402917:	48 8b 55 f8          	mov    -0x8(%rbp),%rdx
+  40291b:	c6 02 00             	movb   $0x0,(%rdx)
+  40291e:	eb 1b                	jmp    40293b <toStr+0x8f>
 	}
 	catch(Exception ex)
 	{
 		*isException=true;
-  402041:	48 8b 55 f8          	mov    -0x8(%rbp),%rdx
-  402045:	c6 02 01             	movb   $0x1,(%rdx)
+  402920:	48 8b 5d f8          	mov    -0x8(%rbp),%rbx
+  402924:	c6 03 01             	movb   $0x1,(%rbx)
 		s = ex.msg;
-  402048:	48 8b 5d d0          	mov    -0x30(%rbp),%rbx
-  40204c:	48 8b 53 18          	mov    0x18(%rbx),%rdx
-  402050:	48 8b 43 10          	mov    0x10(%rbx),%rax
-  402054:	48 89 45 c0          	mov    %rax,-0x40(%rbp)
-  402058:	48 89 55 c8          	mov    %rdx,-0x38(%rbp)
+  402927:	48 8b 45 c0          	mov    -0x40(%rbp),%rax
+  40292b:	48 8b 50 18          	mov    0x18(%rax),%rdx
+  40292f:	48 8b 40 10          	mov    0x10(%rax),%rax
+  402933:	48 89 45 b0          	mov    %rax,-0x50(%rbp)
+  402937:	48 89 55 b8          	mov    %rdx,-0x48(%rbp)
 	}
 
-	if(s == null)
-  40205c:	48 83 7d c0 00       	cmpq   $0x0,-0x40(%rbp)
-  402061:	75 2f                	jne    402092 <toStr+0x9e>
-  402063:	48 8b 55 c8          	mov    -0x38(%rbp),%rdx
-  402067:	48 8b 45 c0          	mov    -0x40(%rbp),%rax
-  40206b:	48 89 d6             	mov    %rdx,%rsi
-  40206e:	48 31 ff             	xor    %rdi,%rdi
-  402071:	48 8b 4d c0          	mov    -0x40(%rbp),%rcx
-  402075:	33 c0                	xor    %eax,%eax
-  402077:	f3 a6                	repz cmpsb %es:(%rdi),%ds:(%rsi)
-  402079:	75 17                	jne    402092 <toStr+0x9e>
-	{
-		*length = 0;
-  40207b:	48 8b 5d f0          	mov    -0x10(%rbp),%rbx
-  40207f:	c7 03 00 00 00 00    	movl   $0x0,(%rbx)
-		*firstChar = null;
-  402085:	48 8b 45 e8          	mov    -0x18(%rbp),%rax
-  402089:	48 c7 00 00 00 00 00 	movq   $0x0,(%rax)
-  402090:	eb 14                	jmp    4020a6 <toStr+0xb2>
-	}
-	else{
-		*length = cast(int)s.length;
-  402092:	8b 55 c0             	mov    -0x40(%rbp),%edx
-  402095:	48 8b 75 f0          	mov    -0x10(%rbp),%rsi
-  402099:	89 16                	mov    %edx,(%rsi)
-		*firstChar = cast(char*)s;
-  40209b:	48 8b 4d c8          	mov    -0x38(%rbp),%rcx
-  40209f:	48 8b 5d e8          	mov    -0x18(%rbp),%rbx
-  4020a3:	48 89 0b             	mov    %rcx,(%rbx)
-	}
+	if(s is null)
+  40293b:	48 8b 4d b8          	mov    -0x48(%rbp),%rcx
+  40293f:	48 0b 4d b0          	or     -0x50(%rbp),%rcx
+  402943:	75 0d                	jne    402952 <toStr+0xa6>
+		return 0;
+  402945:	31 c0                	xor    %eax,%eax
+  402947:	41 5f                	pop    %r15
+  402949:	41 5e                	pop    %r14
+  40294b:	41 5d                	pop    %r13
+  40294d:	41 5c                	pop    %r12
+  40294f:	5b                   	pop    %rbx
+  402950:	c9                   	leaveq 
+  402951:	c3                   	retq   
+
+	if(bufferLength > s.length)
+  402952:	8b 5d f0             	mov    -0x10(%rbp),%ebx
+  402955:	48 3b 5d b0          	cmp    -0x50(%rbp),%rbx
+  402959:	76 06                	jbe    402961 <toStr+0xb5>
+		bufferLength = cast(uint)s.length;
+  40295b:	8b 75 b0             	mov    -0x50(%rbp),%esi
+  40295e:	89 75 f0             	mov    %esi,-0x10(%rbp)
+
+	for(auto i=bufferLength; i>0;)
+  402961:	8b 55 f0             	mov    -0x10(%rbp),%edx
+  402964:	89 55 c8             	mov    %edx,-0x38(%rbp)
+  402967:	83 7d c8 00          	cmpl   $0x0,-0x38(%rbp)
+  40296b:	74 39                	je     4029a6 <toStr+0xfa>
+		buffer[i] = s[--i];
+  40296d:	ff 4d c8             	decl   -0x38(%rbp)
+  402970:	8b 4d c8             	mov    -0x38(%rbp),%ecx
+  402973:	89 c9                	mov    %ecx,%ecx
+  402975:	48 89 4d d0          	mov    %rcx,-0x30(%rbp)
+  402979:	48 3b 4d b0          	cmp    -0x50(%rbp),%rcx
+  40297d:	72 0a                	jb     402989 <toStr+0xdd>
+  40297f:	bf 23 00 00 00       	mov    $0x23,%edi
+  402984:	e8 a3 84 00 00       	callq  40ae2c <_D13toStringdisas7__arrayZ>
+  402989:	48 8b 55 b8          	mov    -0x48(%rbp),%rdx
+  40298d:	48 8b 45 b0          	mov    -0x50(%rbp),%rax
+  402991:	48 8b 5d d0          	mov    -0x30(%rbp),%rbx
+  402995:	40 8a 34 1a          	mov    (%rdx,%rbx,1),%sil
+  402999:	8b 4d c8             	mov    -0x38(%rbp),%ecx
+  40299c:	48 8b 7d e8          	mov    -0x18(%rbp),%rdi
+  4029a0:	40 88 34 39          	mov    %sil,(%rcx,%rdi,1)
+  4029a4:	eb c1                	jmp    402967 <toStr+0xbb>
+
+	return bufferLength;
+  4029a6:	8b 45 f0             	mov    -0x10(%rbp),%eax
 }
-  4020a6:	41 5f                	pop    %r15
-  4020a8:	41 5e                	pop    %r14
-  4020aa:	41 5d                	pop    %r13
-  4020ac:	41 5c                	pop    %r12
-  4020ae:	5b                   	pop    %rbx
-  4020af:	c9                   	leaveq 
-  4020b0:	c3                   	retq   
-  4020b1:	0f 1f 00             	nopl   (%rax)
+  4029a9:	41 5f                	pop    %r15
+  4029ab:	41 5e                	pop    %r14
+  4029ad:	41 5d                	pop    %r13
+  4029af:	41 5c                	pop    %r12
+  4029b1:	5b                   	pop    %rbx
+  4029b2:	c9                   	leaveq 
+  4029b3:	c3                   	retq   
+  
