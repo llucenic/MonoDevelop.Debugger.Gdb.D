@@ -41,10 +41,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 	/// Sub-component of the DGdbBacktrace which cares about low-level access for D variables.
 	/// Uses the MemoryExamination component of the current debugging session.
 	/// </summary>
-	class VariableValueExamination
+	class VariableValueExamination : IObjectValueSource
 	{
 		#region Properties
-		public const long MaximumDisplayCount = 10000;
+		public const long MaximumDisplayCount = 1000;
 		public const long MaximumArrayLengthThreshold = 100000;
 
 		public readonly DGdbBacktrace Backtrace;
@@ -52,6 +52,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 		D_Parser.Completion.EditorData firstFrameEditorData;
 		ResolutionContext resolutionCtx;
 		CodeLocation codeLocation {get{ return firstFrameEditorData != null ? firstFrameEditorData.CaretLocation : CodeLocation.Empty; } }
+
+		IObjectValueSource ValueSource {get{return Backtrace;}}
+
+		bool DisplayAsHex {get{return Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal;}}
 		#endregion
 
 		#region Init/Ctor
@@ -60,6 +64,35 @@ namespace MonoDevelop.Debugger.Gdb.D
 			Backtrace = s;
 			Memory = s.DSession.Memory;
 		}
+		#endregion
+
+		#region IObjectValueSource implementation
+
+		public ObjectValue[] GetChildren (ObjectPath path, int index, int count, EvaluationOptions options)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public EvaluationResult SetValue (ObjectPath path, string value, EvaluationOptions options)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public ObjectValue GetValue (ObjectPath path, EvaluationOptions options)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public object GetRawValue (ObjectPath path, EvaluationOptions options)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public void SetRawValue (ObjectPath path, object value, EvaluationOptions options)
+		{
+			throw new NotImplementedException ();
+		}
+
 		#endregion
 
 		public bool UpdateTypeResolutionContext()
@@ -85,6 +118,293 @@ namespace MonoDevelop.Debugger.Gdb.D
 			resolutionCtx = ResolutionContext.Create(firstFrameEditorData);
 
 			return true;
+		}
+
+		public ObjectValue EvaluateVariable(string variableName)
+		{
+			if (variableName == "this") {
+
+			}
+
+			// Read the symbol type out of gdb into some abstract format (AbstractType?)
+			// -> primitives
+			// -> arrays
+			// -> assoc arrays
+			// -> structs/classes
+			// -> interfaces -> 
+
+			MemberSymbol ms = null;
+
+			foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, null)) {
+				ms = DResolver.StripAliasSymbol (t) as MemberSymbol;
+				if (ms != null)
+					break;
+			}
+
+			// If variable cannot be resolved, try to let gdb evaluate it
+			if (ms == null || ms.Definition == null) {
+				var res = Backtrace.DSession.RunCommand ("-data-evaluate-expression", variableName);
+
+				return ObjectValue.CreatePrimitive (ValueSource, new ObjectPath (variableName), "<unknown>", new EvaluationResult (res.GetValueString("value")), ObjectValueFlags.Variable);
+			}
+
+			// we by-pass variables not declared so far, thus skipping not initialized variables
+			if (ms.Definition.EndLocation > this.codeLocation)
+				return ObjectValue.CreateNullObject(ValueSource, variableName, ms.Base.ToString(), BuildObjectValueFlags(ms));
+
+			return EvaluateVariable (variableName, ms.Base, BuildObjectValueFlags(ms), new ObjectPath(variableName));
+		}
+
+		public ObjectValue EvaluateVariable(string exp, AbstractType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			t = DResolver.StripAliasSymbol (t);
+
+			if (t is PrimitiveType)
+				return EvaluatePrimitive (exp, t as PrimitiveType, flags, path);
+			else if (t is PointerType) {
+				// Read address the pointer points at
+
+				// Make the pointer value a child
+			} else if (t is ArrayType)
+				return EvaluateArray (exp, t as ArrayType, flags, path);
+			else if (t is AssocArrayType)
+				return EvaluateAssociativeArray (exp, t as AssocArrayType, flags, path);
+			else if (t is ClassType)
+				return EvaluateClassInstance (exp, flags, path);
+			else if (t is InterfaceType) {
+				/*
+				IntPtr lOffset;
+				byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);*/
+			}
+
+			return null;
+		}
+
+		ObjectValue EvaluatePrimitive(string exp, PrimitiveType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			byte[] rawBytes;
+			if (!Memory.Read ("(int[])"+exp, DGdbTools.SizeOf (t.TypeToken), out rawBytes))
+				return ObjectValue.CreateError (ValueSource, path, t.ToCode (), null, flags);
+
+			return EvaluatePrimitive(rawBytes,0,t,flags, path);
+		}
+
+		ObjectValue EvaluatePrimitive(byte[] rawBytes, int start, PrimitiveType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			var evalResult = new EvaluationResult(DGdbTools.GetValueFunction(t.TypeToken)
+			                                      (rawBytes, start, DGdbTools.SizeOf (t.TypeToken), DisplayAsHex));
+			return ObjectValue.CreatePrimitive (ValueSource, path, t.ToCode (), evalResult, flags);
+		}
+
+		ObjectValue EvaluateArray(string exp, ArrayType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			var header = Memory.ReadDArrayHeader (exp);
+			if(header.FirstItem.ToInt64() < 1)
+				return ObjectValue.CreateError(ValueSource, path, t.ToCode(), null, flags);
+
+			return EvaluateArray(header.Length.ToInt64(), header.FirstItem.ToInt64(), t, flags, path);
+		}
+
+		ObjectValue EvaluateArray(byte[] rawBytes, int start, ArrayType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			long arrayLength;
+			long firstItem;
+
+			if (IntPtr.Size == 4) {
+				arrayLength = BitConverter.ToInt32 (rawBytes, start);
+				firstItem = BitConverter.ToInt32 (rawBytes, start + 4);
+			} else {
+				arrayLength = BitConverter.ToInt64 (rawBytes, start);
+				firstItem = BitConverter.ToInt64 (rawBytes, start + 8);
+			}
+
+			return EvaluateArray(arrayLength, firstItem, t, flags, path);
+		}
+
+		ObjectValue EvaluateArray(long arrayLength, long firstItemPointer, ArrayType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			var elementType = DResolver.StripAliasSymbol (t.ValueType);
+			var elementsToDisplay = (int)Math.Min (arrayLength, MaximumDisplayCount);
+			var sizeOfElement = SizeOf (elementType);
+
+			byte[] rawArrayContent;
+			Memory.Read (firstItemPointer.ToString(), sizeOfElement * elementsToDisplay, out rawArrayContent);
+
+
+			var elementTypeToken = elementType is PrimitiveType ? (elementType as PrimitiveType).TypeToken : DTokens.INVALID;
+			// Strings
+			if (DGdbTools.IsCharType (elementTypeToken)) {
+				var str = DGdbTools.GetStringValue (rawArrayContent, elementTypeToken);
+				return ObjectValue.CreatePrimitive (ValueSource, path, t.ToString(), new EvaluationResult (str, arrayLength.ToString () + "´\"" + str + "\""), flags);
+			}
+
+			var children = new ObjectValue[elementsToDisplay];;
+
+			// Primitives
+			if(elementTypeToken != DTokens.INVALID){
+				var valFunc = DGdbTools.GetValueFunction (elementTypeToken);
+				//var valueSb = new StringBuilder (arrayLength.ToString()).Append("´[");
+				var elementTypeString = elementType.ToCode();
+				var hex = DisplayAsHex;
+				for (int i = 0; i < elementsToDisplay; i++) {
+					var valStr = valFunc (rawArrayContent, i, sizeOfElement, hex);
+
+					children [i] = ObjectValue.CreatePrimitive (ValueSource, path.Append (i.ToString ()), elementTypeString,
+					                                          new EvaluationResult (valStr), ObjectValueFlags.ArrayElement);
+					//valueSb.Append (valStr).Append(',');
+				}
+
+				// if (arrayLength > 0)	valueSb.Remove (valueSb.Length - 1, 1);
+
+				//valueSb.Append (']');
+
+				var ov = ObjectValue.CreateArray(ValueSource, path, t.ToCode(), (int)arrayLength, flags, children);
+				//ov.DisplayValue = valueSb.ToString ();
+				return ov;
+			}
+
+			if (elementType is ArrayType) {
+				var elementArrayType = elementType as ArrayType;
+
+				for (int i = elementsToDisplay - 1; i >= 0; i--)
+					children [i] = EvaluateArray (rawArrayContent, i * sizeOfElement, 
+					                              elementArrayType, 
+					                              ObjectValueFlags.ArrayElement, 
+					                              path.Append (i.ToString ()));
+
+			} else if (elementType is StructType/* || elementType is UnionType*/) {
+				// Get struct size or perhaps just get the struct meta information from gdb
+				return ObjectValue.CreateNotSupported(ValueSource, path, t.ToCode(), "Struct/Union arrays can't be examined yet", flags);
+			}
+			else if(elementType is PointerType || elementType is InterfaceType || elementType is ClassType) {
+
+				for (int i = 0; i < elementsToDisplay; i++) {
+					long elementPointer;
+					if (sizeOfElement == 4)
+						elementPointer = BitConverter.ToInt32 (rawArrayContent, i * 4);
+					else
+						elementPointer = BitConverter.ToInt64 (rawArrayContent, i * 8);
+
+					children [i] = EvaluateVariable(elementPointer.ToString(), elementType, ObjectValueFlags.ArrayElement, path.Append (i.ToString ()));
+				}
+			}
+
+
+			return ObjectValue.CreateArray(ValueSource, path, t.ToCode(), (int)arrayLength, flags, children);
+		}
+
+		ObjectValue EvaluateAssociativeArray(string exp, AssocArrayType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			return ObjectValue.CreateNotSupported(ValueSource, path, t.ToCode(), "Associative arrays aren't supported yet", flags);
+		}
+
+		ObjectValue EvaluateStructInstance(string exp, StructType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			return null;
+		}
+
+
+		ObjectValue EvaluateClassInstance(string exp, ObjectValueFlags flags, ObjectPath path)
+		{
+			string representativeDisplayValue = Backtrace.DSession.ObjectToStringExam.InvokeToString(exp);
+			// This is the current object instance type
+			// which might be different from the declared type due to inheritance or interfacing
+			TemplateIntermediateType actualClassType;
+			string typeName;
+
+			var objectMembers = new List<ObjectValue> ();
+
+			// read in the object bytes -- The length of an object can be read dynamically and thus the primary range of bytes that contain object properties.
+			var bytes = Memory.ReadObjectBytes(exp, out typeName, out actualClassType, resolutionCtx);
+
+			if (actualClassType == null) {
+
+				// Try to read information from gdb -- this should be already done in the Backtrace implementation!
+
+				return ObjectValue.CreateObject(ValueSource, path, typeName, (string)null, flags, null);
+			}
+
+			var members = MemberLookup.ListMembers(actualClassType, resolutionCtx);
+
+			var currentOffset = DGdbTools.CalcOffset(2); // Skip pointer to vtbl[] and monitor
+
+			foreach (var member in members) {
+				var memberType = DResolver.StripAliasSymbol(member.Base);
+				var memberFlags = BuildObjectValueFlags (member) | ObjectValueFlags.Field;
+				var memberPath = path.Append (member.Name);
+
+				var memberLength = SizeOf (memberType);
+				try{
+				if (memberType is PrimitiveType) {
+					objectMembers.Add (EvaluatePrimitive (bytes, currentOffset, memberType as PrimitiveType, memberFlags, memberPath)); 
+
+				} else if (memberType is ArrayType) {
+					objectMembers.Add(EvaluateArray(bytes, currentOffset, memberType as ArrayType, memberFlags, memberPath));
+
+				} else if(memberType is PointerType ||
+				          memberType is InterfaceType ||
+				          memberType is ClassType) {
+					long ptr;
+					if (memberLength == 4)
+						ptr = BitConverter.ToInt32 (bytes, currentOffset);
+					else
+						ptr = BitConverter.ToInt64 (bytes, currentOffset);
+
+					objectMembers.Add (EvaluateVariable(ptr.ToString(), memberType, memberFlags, memberPath));
+				}
+				}catch(Exception ex) {
+					memberLength = memberLength;
+				}
+				//TODO: Structs
+
+				// TODO: use alignof property instead of constant
+				currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
+			}
+
+			return ObjectValue.CreateObject (ValueSource, path, actualClassType.ToCode (), representativeDisplayValue, flags, objectMembers.ToArray ());
+		}
+
+		int SizeOf(AbstractType t)
+		{
+			if (t is PrimitiveType)
+				return DGdbTools.SizeOf ((t as PrimitiveType).TypeToken);
+
+			if (t is ArrayType)
+				return IntPtr.Size * 2;
+
+			if(t is StructType || t is UnionType)
+			{
+				//TODO: Get type info from gdb and estimate final size via measuring each struct member
+			}
+
+			return IntPtr.Size;
+		}
+
+		public static ObjectValueFlags BuildObjectValueFlags(MemberSymbol ds)
+		{
+			var baseType = ds is MemberSymbol ? ds.Base : ds;
+			ObjectValueFlags f= ObjectValueFlags.None;
+
+			if (baseType is ClassType || baseType is InterfaceType)
+				f |= ObjectValueFlags.Object;
+			else if (baseType is PrimitiveType)
+				f |= ObjectValueFlags.Primitive;
+			else if (baseType is ArrayType)
+				f |= ObjectValueFlags.Array;
+
+			var defParent = ds.Definition.Parent;
+
+			if (defParent is DModule)
+				f |= ObjectValueFlags.Global;
+			else if(defParent is DMethod)
+			{
+				if ((defParent as DMethod).Parameters.Contains (ds.Definition))
+					f |= ObjectValueFlags.Parameter;
+				else
+					f |= ObjectValueFlags.Variable;
+			}
+
+			return f;
 		}
 
 		public ObjectValue CreateObjectValue(string name, ResultData data)
@@ -133,370 +453,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			val.Name = name;
 			return val;
-		}
-
-		public ResultData AdaptVarObjectForD(string exp, DGdbCommandResult res/*, string expAddr = null*/)
-		{
-			AbstractType at;
-			bool checkLocation = true;
-			if (exp.Equals(DTokens.GetTokenString(DTokens.This))) {
-				// resolve 'this'
-				var sType = res.GetValueString("type");
-				// sType contains 'struct module.class.example *'
-				int structTokenLength = DTokens.GetTokenString(DTokens.Struct).Length;
-				sType = sType.Substring (structTokenLength + 1, sType.Length - structTokenLength - 3);
-				DToken optToken;
-				at = new MemberSymbol(
-					resolutionCtx.ScopedBlock as DNode,
-					TypeDeclarationResolver.ResolveSingle(DParser.ParseBasicType(sType, out optToken), this.resolutionCtx),
-					resolutionCtx.ScopedStatement);
-				// TODO: find out better way to be in line with the general concept of resolving expressions
-				// one possible way is to query Evaluation.EvaluateType() as follows
-				//at = Evaluation.EvaluateType(new TokenExpression(DTokens.This), this.resolutionCtx);
-				checkLocation = false;
-			}
-			else {
-				at = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null);
-			}
-			string type = null;
-
-			if (at is DSymbol) {
-				var ds = at as DSymbol;
-				if (checkLocation == true && (ds.Definition == null || ds.Definition.EndLocation > this.codeLocation)) {
-					// we by-pass variables not declared so far, thus skipping not initialized variables
-					return null;
-				}
-				var dsBase = ds.Base;
-				if (dsBase is AliasedType) {
-					// unalias aliased types
-					dsBase = DResolver.StripMemberSymbols(dsBase);
-				}
-
-				if (dsBase is PrimitiveType) {
-					// primitive type
-					// we adjust only wchar and dchar
-					res.SetProperty("value", AdaptPrimitiveForD(dsBase as PrimitiveType, res.GetValueString("value"), 
-					                                            Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat==IntegerDisplayFormat.Hexadecimal));
-				}
-				else if (dsBase is PointerType) {
-					string sValue = res.GetValueString("value");
-					IntPtr ptr;
-					if(false && Memory.Read(sValue, out ptr))
-					{
-						//res.SetProperty("value", AdaptPointerForD(dsBase as PointerType, sValue));
-					}
-				}
-				else if (dsBase is TemplateIntermediateType) {
-					// instance of struct, union, template, mixin template, class or interface
-					TemplateIntermediateType ctype = null;
-
-					if (dsBase is ClassType) {
-						// read in the object bytes
-						var bytes = Memory.ReadObjectBytes(exp, out ctype, resolutionCtx);
-
-						var members = MemberLookup.ListMembers(ctype, resolutionCtx);
-
-						res.SetProperty("value", AdaptObjectForD(exp, bytes, members, ctype as ClassType, ref res));
-					}
-					else if (dsBase is StructType) {
-
-					}
-					else if (dsBase is UnionType) {
-
-					}
-					else if (dsBase is InterfaceType) {
-						// read in the interface instance bytes
-						IntPtr lOffset;
-						byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);
-
-						// first, we need to get the dynamic type of the interface instance
-						// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-						// once we correctly back-offseted to the this pointer of the actual class instance
-						var members = MemberLookup.ListMembers(ctype, resolutionCtx);
-
-						res.SetProperty("value", AdaptObjectForD(
-							String.Format("(void*){0}-{1}", exp, lOffset),
-							bytes, members, ctype as ClassType, ref res));
-					}
-					else if (dsBase is MixinTemplateType) {
-						// note: MixinTemplateType is TemplateType, therefore if-ed before it
-					}
-					else if (dsBase is TemplateType) {
-
-					}
-					// read out the dynamic type of an object instance
-					//string cRes = DSession.DRunCommand ("x/s", "*(**(unsigned long)" + exp + "+0x14)");
-					// or interface instance
-					//string iRes = DSession.DRunCommand ("x/s", "*(*(unsigned long)" + exp + "+0x14+0x14)");
-					//typ = iRes;
-				}
-				else if (dsBase is ArrayType) {
-					// simple array (indexed by int)
-					ReadDArray(dsBase as ArrayType, exp, ref res);
-				}
-				else if (dsBase is AssocArrayType) {
-					// associative array
-					// TODO: ostava doriesit pole poli, objektov a asoc pole
-					//ObjectValue.CreateArray(source, path, typeName, arrayCount, flags, children);
-				}
-
-				if (dsBase != null) {
-					// define the dynamically defined object type
-					type = DGdbTools.AliasStringTypes(type = dsBase.ToString());
-				}
-			}
-			else {
-				return null;
-			}
-
-			// following code serves for static type resolution
-			ResolveStaticTypes(ref res, exp, type);
-
-			return res;
-		}
-	
-		void ResolveStaticTypes(ref DGdbCommandResult res, string exp, string dynamicType)
-		{
-			bool isParam = false;
-
-			if (resolutionCtx.ScopedBlock is DMethod) {
-				// resolve function parameters
-				foreach (INode decl in (resolutionCtx.ScopedBlock as DMethod).Parameters) {
-					if (decl.Name.Equals(exp)) {
-						res.SetProperty("type", dynamicType ?? decl.Type.ToString());
-						isParam = true;
-						break;
-					}
-				}
-			}
-			if (isParam == false) {
-				// resolve block members
-				var ds = TypeDeclarationResolver.ResolveSingle(exp, this.resolutionCtx, null) as DSymbol;
-				res.SetProperty("type", dynamicType ?? ds.Definition.Type.ToString());
-			}
-		}
-
-		static string AdaptPrimitiveForD(PrimitiveType pt, string aValue, bool asHex = false)
-		{
-			byte typeToken = pt.TypeToken;
-			var getValue = DGdbTools.GetValueFunction(typeToken);
-
-			switch (typeToken) {
-				case DTokens.Char:
-				var charValue = aValue.Split(new char[]{' '});
-				return getValue(new byte[]{ byte.Parse(charValue[0]) }, 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
-
-				case DTokens.Wchar:
-				uint lValueAsUInt = uint.Parse(aValue);
-				lValueAsUInt &= 0x0000FFFF;
-				return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
-
-				case DTokens.Dchar:
-				lValueAsUInt = uint.Parse(aValue);
-				return getValue(BitConverter.GetBytes(lValueAsUInt), 0, (uint)DGdbTools.SizeOf(typeToken), asHex);
-
-				default:
-				/*lValueAsUInt = ulong.Parse(lValue);
-					return String.Format("{1} (0x{0:X})", lValueAsUInt, lValue);*/
-				return aValue;
-			}
-		}
-
-		void ReadDArray(ArrayType arrayType, string exp, ref DGdbCommandResult res)
-		{
-			ReadDArray (arrayType, Memory.ReadDArrayHeader (exp), ref res);
-		}
-
-		void ReadDArray(ArrayType arrayType, DArrayStruct arrayInfo, ref DGdbCommandResult res)
-		{
-			var itemType = DResolver.StripMemberSymbols(arrayType.ValueType);
-			var arrayLength = arrayInfo.Length.ToInt64 ();
-
-			var lValue = new StringBuilder();
-			var lSeparator = "";
-
-			if (itemType is PrimitiveType) {
-				var lArrayType = (itemType as PrimitiveType).TypeToken;
-
-				// read in raw array bytes
-				byte[] lBytes;
-				Memory.Read(arrayInfo, out lBytes, DGdbTools.SizeOf(lArrayType));
-				
-				if (DGdbTools.IsCharType(lArrayType)) {
-					lValue.Append("\"").Append(DGdbTools.GetStringValue(lBytes, lArrayType)).Append("\"");
-
-					// Do not show every single character!
-					res.SetProperty("numchild", 0);
-					res.SetProperty("children", null);
-				}
-				else {
-					// define local variable value
-					var primitiveArrayObjects = CreateObjectValuesForPrimitiveArray(res, lArrayType, lBytes.Length,
-						                                                            arrayType.TypeDeclarationOf as ArrayDecl, lBytes);
-
-					lValue.Append ('[');
-					foreach (ObjectValue ov in primitiveArrayObjects) {
-						lValue.Append(lSeparator).Append(ov.Value);
-						lSeparator = ", ";
-					}
-					lValue.Append(']');
-
-					res.SetProperty("numchild", lBytes.Length.ToString());
-					res.SetProperty("children", primitiveArrayObjects);
-				}
-
-				res.SetProperty("has_more", "1");
-			}
-			else if (itemType is ArrayType) {
-
-				var itemArrayType = itemType as ArrayType;
-
-				const string itemArrayFormatString = "*({0})";
-
-				var children = new ObjectValue[arrayLength];
-
-				DGdbCommandResult iterRes = new DGdbCommandResult(
-					String.Format("^done,value=\"[{0}]\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-				              arrayLength,
-				              DGdbTools.AliasStringTypes(itemArrayType.ToString()),
-				              res.GetValue("thread-id")));
-
-				lValue.Append ("[");
-				var firstItem = arrayInfo.FirstItem.ToInt64 ();
-				for (int i = 0; i < arrayLength; i++) {
-					iterRes.SetProperty("name", String.Format("{0}.[{1}]", res.GetValue("name"), i));
-
-					ReadDArray(itemArrayType, 
-					           String.Format(itemArrayFormatString,(firstItem+DGdbTools.CalcOffset(i*2)).ToString()),
-					           ref iterRes);
-
-					lValue.Append(iterRes.GetValueString("value"));
-
-					lSeparator = ", ";
-					children[i] = CreateObjectValue(String.Format("[{0}]", i), iterRes);
-				}
-				lValue.Append (']');
-
-				res.SetProperty("has_more", "1");
-				res.SetProperty("numchild", arrayLength);
-				res.SetProperty("children", children);
-			}
-
-			// Put the array length in front of the literal
-			if(arrayLength > 1)
-				lValue.Insert(0,'´').Insert(0,arrayLength);
-
-			res.SetProperty("value", lValue.ToString());
-		}
-
-		String AdaptObjectForD(string exp, byte[] objectContent, List<DSymbol> members, ClassType ctype, ref DGdbCommandResult res)
-		{
-			var result = Backtrace.DSession.ObjectToStringExam.InvokeToString(exp) ?? res.GetValueString("value");
-
-			if (objectContent == null)
-				throw new ArgumentNullException ("bytes","AdaptObjectForD: exp=" + exp + "; ctype=" + 
-				                                 ctype.ToCode () + "; members.length="+members.Count.ToString()+"\n");
-			/*
-			 * Dump object contents
-			var sb = new StringBuilder ("AdaptObjectForD: exp=");
-			sb.Append (exp).Append("; bytes=");
-			foreach (var b in bytes)
-				sb.AppendFormat ("{0:X} ", b);
-			sb.AppendLine ();
-
-			Backtrace.DSession.LogWriter (false,sb.ToString());
-			*/
-
-			if (ctype != null && string.IsNullOrEmpty(result))
-				result = ctype.TypeDeclarationOf.ToString();
-
-			var currentOffset = DGdbTools.CalcOffset(2); // size of a vptr
-			var memberLength = 0;
-
-			if (members.Count > 0) {
-				var memberList = new List<ObjectValue>();
-				foreach (var ds in members) {
-					// Dump member info
-					//Backtrace.DSession.LogWriter (false,"Member "+ds.ToCode()+"\n");
-
-					var ms = ds as MemberSymbol;
-					memberLength = DGdbTools.CalcOffset();
-					if (ms != null) {
-						// member symbol resolution based on its type
-						var unaliasedMemberType = DResolver.StripAliasSymbol(ms.Base);
-
-						if (unaliasedMemberType is PrimitiveType) {
-							memberLength = DGdbTools.SizeOf((unaliasedMemberType as PrimitiveType).TypeToken);
-							var val = DGdbTools.GetValueFunction ((unaliasedMemberType as PrimitiveType).TypeToken) (objectContent, (uint)currentOffset, 1,
-							                                                                                         Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal);
-
-							val = AdaptPrimitiveForD(unaliasedMemberType as PrimitiveType, val,
-							                         Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat==IntegerDisplayFormat.Hexadecimal);
-
-							var memberRes = new DGdbCommandResult(
-								String.Format("^done,value=\"{0}\",type=\"{1}\",thread-id=\"{2}\",numchild=\"0\"",
-							              val, ms.Base, res.GetValue("thread-id")));
-							memberList.Add(CreateObjectValue(ms.Name, memberRes));
-						}
-						else if (unaliasedMemberType is ArrayType) {
-							memberLength = DGdbTools.CalcOffset (2); // Length + FirstItem
-
-							using(var mem = new MemoryStream(objectContent,currentOffset, memberLength))
-							using(var br = new BinaryReader(mem))
-							{
-								var ai = new DArrayStruct { 
-									Length = new IntPtr(br.ReadInt64()),
-									FirstItem = new IntPtr(br.ReadInt64()),
-								};
-								var memberRes = new DGdbCommandResult (
-									String.Format("^done,type=\"{0}\",thread-id=\"{1}\"", ms.Base, res.GetValue("thread-id")));
-								ReadDArray (unaliasedMemberType as ArrayType, ai, ref memberRes);
-								memberList.Add (CreateObjectValue(ms.Name, memberRes));
-							}
-						}
-						else if (unaliasedMemberType is TemplateIntermediateType) {
-							// instance of struct, union, template, mixin template, class or interface
-							if (unaliasedMemberType is ClassType) {
-							}
-						}
-					}
-					else {
-						InterfaceType it = ds as InterfaceType;
-						if (it != null) {
-							// interface implementation pointer to vptr
-							// we jump this just over
-						}
-					}
-					// TODO: use alignof property instead of constant
-					currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
-				}
-				res.SetProperty("children", memberList.ToArray());
-				res.SetProperty("numchild", memberList.Count.ToString());
-			}
-			return result;
-		}
-
-		ObjectValue[] CreateObjectValuesForPrimitiveArray(DGdbCommandResult res, byte typeToken, long arrayLength, ArrayDecl arrayType, byte[] array)
-		{
-			arrayLength = Math.Min (arrayLength, MaximumDisplayCount);
-			if (arrayLength > 0) {
-				var lItemSize = DGdbTools.SizeOf(typeToken);
-
-				var items = new ObjectValue[arrayLength];
-
-				for (uint i = 0; i < arrayLength; i++) {
-					String itemParseString = String.Format(
-						"^done,name=\"{0}.[{1}]\",numchild=\"{2}\",value=\"{3}\",type=\"{4}\",thread-id=\"{5}\",has_more=\"{6}\"",
-						res.GetValue("name"), i, 0,
-						DGdbTools.GetValueFunction(typeToken)(array, i, (uint)lItemSize, Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal),
-						arrayType.ValueType, res.GetValue("thread-id"), 0);
-					items[i] = CreateObjectValue(String.Format("[{0}]", i), new DGdbCommandResult(itemParseString));
-				}
-				return items;
-			}
-			else {
-				return null;
-			}
 		}
 	}
 }

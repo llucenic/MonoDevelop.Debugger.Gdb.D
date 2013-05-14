@@ -35,9 +35,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#region Properties
 		public MemoryExamination Memory;
 		public ToStringExamination ObjectToStringExam;
-		//string lastDCommand;
-		//bool isMultiLine;
-		//object commandLock = new object ();
 		#endregion
 
 		#region Constructor/Init
@@ -47,19 +44,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			ObjectToStringExam = new ToStringExamination (this);
 		}
 		#endregion
-
-		/*
-		public string DRunCommand (string command, params string[] args)
-		{
-			GdbCommandResult res;
-			isMultiLine = false;
-			lock (commandLock) {
-				lastDCommand = command + " " + string.Join (" ", args);
-				res = RunCommand(command, args);
-				Monitor.PulseAll (commandLock);
-			}
-			return res.GetValueString("value");
-		}*/
 
 		protected override void ProcessOutput (string line)
 		{

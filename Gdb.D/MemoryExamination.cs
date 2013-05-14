@@ -37,6 +37,16 @@ namespace MonoDevelop.Debugger.Gdb.D
 	{
 		public IntPtr Length;
 		public IntPtr FirstItem;
+
+		public DArrayStruct(int length, int firstItemAddress) {
+			Length = new IntPtr (length);
+			FirstItem = new IntPtr (firstItemAddress);
+		}
+
+		public DArrayStruct(long length, long firstItemAddress) {
+			Length = new IntPtr (length);
+			FirstItem = new IntPtr (firstItemAddress);
+		}
 	}
 
 	/// <summary>
@@ -87,8 +97,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return Read (arrayInfo.FirstItem.ToString (), arrayInfo.Length.ToInt32 () * itemSize, out data);
 		}
 
-		public byte[] ReadObjectBytes (string exp, out TemplateIntermediateType ctype, ResolutionContext resolutionCtx)
+		public byte[] ReadObjectBytes (string exp, out string rawTypeName, out TemplateIntermediateType ctype, ResolutionContext resolutionCtx)
 		{
+			rawTypeName = null;
 			ctype = null;
 
 			// read the object's length
@@ -110,15 +121,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// read the dynamic type of the instance:
 			// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
 			// == obj.classinfo.name
-			var sType = ReadString("***(int*)(" + exp + ")+" + DGdbTools.CalcOffset(1));
+			rawTypeName = ReadString("***(int*)(" + exp + ")+" + DGdbTools.CalcOffset(1));
 
 			// Try to resolve the abstract type and establish a connection between physical and virtual data spheres
 			DToken optToken;
-			var bt = DParser.ParseBasicType (sType, out optToken);
+			var bt = DParser.ParseBasicType (rawTypeName, out optToken);
 			var t = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx);
 			if(t == null)
 			{
-				Session.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+sType+"\n");
+				Session.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+rawTypeName+"\n");
 				Session.LogWriter (false,"Ctxt: "+resolutionCtx.ScopedBlock.ToString()+"\n");
 				Session.LogWriter (false,"Resolved Type: "+(t == null ? "null" : t.ToCode())+"\n---------\n");
 			}
@@ -135,8 +146,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return new byte[0];
 			}
 
+			ctype = null;
+			return null;
 			//TODO: fix the following dereference !
-			return ReadObjectBytes (String.Format ("(void*){0}-{1}", exp, offset), out ctype, resolutionCtx);
+			//return ReadObjectBytes (String.Format ("(int*){0}-{1}", exp, offset), out ctype, resolutionCtx);
 		}
 
 		#endregion

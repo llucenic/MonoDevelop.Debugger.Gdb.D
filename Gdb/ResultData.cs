@@ -53,6 +53,11 @@ namespace MonoDevelop.Debugger.Gdb
 			return props [name];
 		}
 
+		public void SetValue(string name, object o)
+		{
+			props [name] = o;
+		}
+
 		public string GetValueString(string name)
 		{
 			var o = props [name];

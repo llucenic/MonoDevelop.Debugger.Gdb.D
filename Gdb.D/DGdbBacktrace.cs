@@ -70,41 +70,41 @@ namespace MonoDevelop.Debugger.Gdb.D
 			string func = frameData.GetValueString("func");
 			string sadr = frameData.GetValueString("addr");
 
-			int line = -1;
-			string sline = frameData.GetValueString("line");
-			if (sline != null) {
-				line = int.Parse(sline);
-			}
+			int line;
+			int.TryParse(frameData.GetValueString("line"),out line);
 
 			string sfile = frameData.GetValueString("fullname");
-			if (sfile == null) {
+			if (sfile == null)
 				sfile = frameData.GetValueString("file");
-			}
-			if (sfile == null) {
+			if (sfile == null)
 				sfile = frameData.GetValueString("from");
-			}
 
 			// demangle D function/method name stored in func
 			var typeDecl = Demangler.DemangleQualifier(func);
-			if (typeDecl != null) {
+			if (typeDecl != null)
 				func = typeDecl.ToString();
-			}
 
-			SourceLocation loc = new SourceLocation(func ?? "?", sfile, line);
-
-			long addr;
-			if (!string.IsNullOrEmpty(sadr)) {
+			long addr = 0;
+			if (!string.IsNullOrEmpty(sadr))
 				addr = long.Parse(sadr.Substring(2), System.Globalization.NumberStyles.HexNumber);
-			}
-			else {
-				addr = 0;
-			}
 
-			return new StackFrame(addr, loc, lang);
+			return new StackFrame(addr, new SourceLocation(func ?? "<undefined>", sfile, line), lang);
 		}
 		#endregion
 
 		#region Variables
+		public override ObjectValue[] GetLocalVariables(int frameIndex, EvaluationOptions options)
+		{
+			var res = session.RunCommand("-stack-list-locals", "0");
+			return GetVariables(frameIndex, options, res.GetObject("locals"));
+		}
+
+		public override ObjectValue[] GetParameters(int frameIndex, EvaluationOptions options)
+		{
+			var res = session.RunCommand("-stack-list-arguments", "0", frameIndex.ToString(), frameIndex.ToString());
+			return GetVariables(frameIndex, options, res.GetObject("stack-args").GetObject(0).GetObject("frame").GetObject("args"));
+		}
+
 		public ObjectValue[] GetVariables(int frameIndex, EvaluationOptions options, ResultData variables)
 		{
 			SelectFrame(frameIndex);
@@ -114,15 +114,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 				Variables.UpdateTypeResolutionContext();
 
 				foreach (ResultData data in variables) {
-					var varExp = data.GetValueString("name");
-					var val = CreateVarObject(varExp);
+					var variableName = data.GetValueString("name");
+					try{
+					
+					var val = CreateVarObject(variableName);
 					if (val != null) {
 						// we get rid of unresolved or erroneous variables
 						values.Add(val);
 					}
 					else {
-						Console.WriteLine("Gdb.D: unresolved variable " + varExp);
-						Console.WriteLine(data);
+						DSession.LogWriter(false,"Gdb.D: Couldn't resolve variable " + variableName+"\n\tRaw data: "+variables.ToString());
+					}
+					}catch(Exception ex) {
+						continue;
 					}
 				}
 			}
@@ -130,33 +134,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return values.ToArray();
 		}
 
-		public override ObjectValue[] GetLocalVariables(int frameIndex, EvaluationOptions options)
-		{
-			GdbCommandResult res = session.RunCommand("-stack-list-locals", "0");
-			return GetVariables(frameIndex, options, res.GetObject("locals"));
-		}
-
-		public override ObjectValue[] GetParameters(int frameIndex, EvaluationOptions options)
-		{
-			GdbCommandResult res = session.RunCommand("-stack-list-arguments", "0", frameIndex.ToString(), frameIndex.ToString());
-			return GetVariables(frameIndex, options, res.GetObject("stack-args").GetObject(0).GetObject("frame").GetObject("args"));
-		}
-
 		protected override ObjectValue CreateVarObject(string exp)
 		{
+			session.SelectThread(threadId);
+			return Variables.EvaluateVariable (exp);
+			/*
 			try {
-				session.SelectThread(threadId);
+
 				exp = exp.Replace("\"", "\\\"");
-				var res = DSession.RunCommand("-var-create", "-", "*", "\"" + exp + "\"") as DGdbCommandResult;
-				//DGdbCommandResult resAddr = DSession.RunCommand("-var-create", "-", "*", "\"&" + exp + "\"") as DGdbCommandResult;
-				var vname = res.GetValueString("name");
-				session.RegisterTempVariableObject(vname);
-				return Variables.CreateObjectValue(exp, Variables.AdaptVarObjectForD(exp, res/*, resAddr.GetValue("value")*/));
+
+				return Variables.CreateObjectValue(exp, Variables.AdaptVarObjectForD(exp));
 			}
 			catch (Exception e) {
 				// just for debugging purposes
 				return ObjectValue.CreateUnknown(exp + " - Gdb.D Exception: " + e.Message);
-			}
+			}*/
 		}
 
 		/// <summary>
