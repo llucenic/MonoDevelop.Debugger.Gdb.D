@@ -73,37 +73,37 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return arrayType.Equals(DTokens.Char) || arrayType.Equals(DTokens.Wchar) || arrayType.Equals(DTokens.Dchar);
 		}
 
-		public delegate string ValueFunction(byte[] array, int i, int itemSize, bool hex);
+		public delegate string ValueFunction(byte[] array, int i, bool hex);
 
 		static string ToString2(object o, bool hex, int padLength)
 		{
 			return hex ? String.Format ("0x{0:x"+padLength.ToString()+"}", o) : o.ToString ();
 		}
 
-		static string GetBoolValue  (byte[] array, int i, int itemSize, bool hex) { return BitConverter.ToBoolean(array, i * itemSize) ? Boolean.TrueString : Boolean.FalseString; }
+		static string GetBoolValue  (byte[] array, int i, bool hex) { return BitConverter.ToBoolean(array, i) ? Boolean.TrueString : Boolean.FalseString; }
 
-		static string GetByteValue  (byte[] array, int i, int itemSize, bool hex) { return ToString2((sbyte)array[i], hex, 2); }
-		static string GetUbyteValue (byte[] array, int i, int itemSize, bool hex) { return ToString2(array[i], hex, 2); }
+		static string GetByteValue  (byte[] array, int i, bool hex) { return ToString2((sbyte)array[i], hex, 2); }
+		static string GetUbyteValue (byte[] array, int i, bool hex) { return ToString2(array[i], hex, 2); }
 
-		static string GetShortValue (byte[] array, int i, int itemSize, bool hex) { return ToString2(BitConverter.ToInt16 (array, (i * itemSize)), hex, 4); }
-		static string GetIntValue   (byte[] array, int i, int itemSize, bool hex) { return ToString2(BitConverter.ToInt32 (array, (i * itemSize)), hex, 8); }
-		static string GetLongValue  (byte[] array, int i, int itemSize, bool hex) { return ToString2(BitConverter.ToInt64 (array, (i * itemSize)), hex, 16); }
+		static string GetShortValue (byte[] array, int i, bool hex) { return ToString2(BitConverter.ToInt16 (array, i), hex, 4); }
+		static string GetIntValue   (byte[] array, int i, bool hex) { return ToString2(BitConverter.ToInt32 (array, i), hex, 8); }
+		static string GetLongValue  (byte[] array, int i, bool hex) { return ToString2(BitConverter.ToInt64 (array, i), hex, 16); }
 
-		static string GetUshortValue(byte[] array, int i, int itemSize, bool hex) { return ToString2(BitConverter.ToUInt16 (array, (i * itemSize)), hex, 4); }
-		static string GetUintValue  (byte[] array, int i, int itemSize, bool hex) { return ToString2(BitConverter.ToUInt32 (array, (i * itemSize)), hex, 8); }
-		static string GetUlongValue (byte[] array, int i, int itemSize, bool hex) { return ToString2(BitConverter.ToUInt64 (array, (i * itemSize)), hex, 16); }
+		static string GetUshortValue(byte[] array, int i, bool hex) { return ToString2(BitConverter.ToUInt16 (array, i), hex, 4); }
+		static string GetUintValue  (byte[] array, int i, bool hex) { return ToString2(BitConverter.ToUInt32 (array, i), hex, 8); }
+		static string GetUlongValue (byte[] array, int i, bool hex) { return ToString2(BitConverter.ToUInt64 (array, i), hex, 16); }
 
-		static string GetFloatValue (byte[] array, int i, int itemSize, bool hex) { return BitConverter.ToSingle(array, (i * itemSize)).ToString(); }
-		static string GetDoubleValue(byte[] array, int i, int itemSize, bool hex) { return BitConverter.ToDouble(array, (i * itemSize)).ToString(); }
+		static string GetFloatValue (byte[] array, int i, bool hex) { return BitConverter.ToSingle(array, i).ToString(); }
+		static string GetDoubleValue(byte[] array, int i, bool hex) { return BitConverter.ToDouble(array, i).ToString(); }
 
-		static string GetRealValue (byte[] array, int i, int itemSize, bool hex)
+		static string GetRealValue (byte[] array, int i, bool hex)
 		{
 			// method converts real precision (80bit) to double precision (64bit)
 			// since c# does not natively support real precision variables
-			ulong realFraction = BitConverter.ToUInt64 (array, (i * itemSize));		// read in first 8 bytes
+			ulong realFraction = BitConverter.ToUInt64 (array, i);		// read in first 8 bytes
 			ulong realIntPart = realFraction >> 63;											// extract bit 64 (explicit integer part), this is hidden in double precision
 			realFraction &= ~(ulong)(realIntPart << 63); // 0x7FFFFFFFFFFFFFFF				// use only 63 bits for fraction (strip off the integer part bit)
-			ushort realExponent = BitConverter.ToUInt16 (array, (i * itemSize + 8));	// read in the last 2 bytes
+			ushort realExponent = BitConverter.ToUInt16 (array, (i + 8));	// read in the last 2 bytes
 			ushort realSign = (ushort)(realExponent >> 15);									// extract sign bit (most significant)
 			realExponent &= 0x7FFF;															// strip the sign bit off the exponent
 
@@ -151,32 +151,32 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return hex ? String.Format("0x{1:x" + aSize*2 + "}", aChar) : aChar.ToString();
 		}
 
-		static string GetCharValue (byte[] array, int i, int itemSize, bool hex)
+		static string GetCharValue (byte[] array, int i, bool hex)
 		{
-			char[] chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), 1);
+			char[] chars = Encoding.UTF8.GetChars(array, i, 1);
 			if ((uint)chars[0] == 0xFFFD) {
 				// code point is wider than 1 byte
-				chars = Encoding.UTF8.GetChars(array, (int)(i*itemSize), i+2 > array.Length ? 1 : 2);
+				chars = Encoding.UTF8.GetChars(array, i, i+2 > array.Length ? 1 : 2);
 				if ((uint)chars[0] == 0xFFFD) {
 					// code point was already in previous char
 					return "(skipped code point)";
 				}
 				else {
 					// code point is resolved correctly
-					return FormatCharValue(chars[0], hex, itemSize) + " (multi-code point)";
+					return FormatCharValue(chars[0], hex, 1) + " (multi-code point)";
 				}
 			}
-			return FormatCharValue(chars[0], hex, itemSize);
+			return FormatCharValue(chars[0], hex, 1);
 		}
-		static string GetWcharValue(byte[] array, int i, int itemSize, bool hex)
+		static string GetWcharValue(byte[] array, int i, bool hex)
 		{
-			char[] chars = Encoding.Unicode.GetChars(array, (int)(i*itemSize), (int)itemSize);
-			return FormatCharValue(chars[0], hex, itemSize);
+			char[] chars = Encoding.Unicode.GetChars(array, i, 2);
+			return FormatCharValue(chars[0], hex, 2);
 		}
-		static string GetDcharValue(byte[] array, int i, int itemSize, bool hex)
+		static string GetDcharValue(byte[] array, int i, bool hex)
 		{
-			char[] chars = Encoding.UTF32.GetChars(array, (int)(i*itemSize), (int)itemSize);
-			return FormatCharValue(chars[0], hex, itemSize);
+			char[] chars = Encoding.UTF32.GetChars(array, i, 4);
+			return FormatCharValue(chars[0], hex, 4);
 		}
 
 		public static string GetStringValue(byte[] array, byte typeToken = DTokens.Char)
