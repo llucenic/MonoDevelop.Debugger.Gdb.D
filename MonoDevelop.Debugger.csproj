@@ -102,6 +102,7 @@
     <Compile Include="Gdb.D\MemoryExamination.cs" />
     <Compile Include="Gdb.D\ToStringExamination.cs" />
     <Compile Include="Misc\ArrayConversionHelpers.cs" />
+    <Compile Include="Gdb.D\ObjectCacheNode.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Manifest.addin.xml">

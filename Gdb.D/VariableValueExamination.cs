@@ -52,7 +52,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		CodeLocation codeLocation { get { return firstFrameEditorData != null ? firstFrameEditorData.CaretLocation : CodeLocation.Empty; } }
 
-		IObjectValueSource ValueSource { get { return Backtrace; } }
+		IObjectValueSource ValueSource { get { return this; } }
 
 		bool DisplayAsHex { get { return Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal; } }
 		#endregion
@@ -66,10 +66,91 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region IObjectValueSource implementation
+		ObjectRootCacheNode cacheRoot = new ObjectRootCacheNode();
 
 		public ObjectValue[] GetChildren (ObjectPath path, int index, int count, EvaluationOptions options)
 		{
-			throw new NotImplementedException ();
+			var node = cacheRoot [path];
+
+			if(node == null)
+				return Backtrace.GetChildren(path, index, count, options);
+
+			ObjectValue[] children = null;
+
+			if (node.NodeType is ArrayType)
+				children = GetChildren (node, path, node.addressExpression, node.NodeType as ArrayType, index, count, options);
+
+			return children;
+		}
+
+		public ObjectValue[] GetChildren(ObjectCacheNode cacheNode,ObjectPath arrayPath, string exp, ArrayType t, int index, int elementsToDisplay, EvaluationOptions options)
+		{
+			var elementType = DResolver.StripAliasSymbol (t.ValueType);
+			var sizeOfElement = SizeOf (elementType);
+
+			var header = Memory.ReadDArrayHeader (exp);
+			elementsToDisplay = Math.Min (header.Length.ToInt32 (), index + elementsToDisplay);
+
+			byte[] rawArrayContent;
+			Memory.Read ((header.FirstItem.ToInt64() + index).ToString (), sizeOfElement * elementsToDisplay, out rawArrayContent);
+
+			var children = new ObjectValue[elementsToDisplay];
+			ObjectPath item;
+
+			var elementTypeToken = elementType is PrimitiveType ? (elementType as PrimitiveType).TypeToken : DTokens.INVALID;
+
+			if (elementTypeToken != DTokens.INVALID)
+			{
+				var valFunc = DGdbTools.GetValueFunction (elementTypeToken);
+				var elementTypeString = elementType.ToCode ();
+				var hex = DisplayAsHex;
+
+				for (int i = 0; i < elementsToDisplay; i++) {
+					var valStr = valFunc (rawArrayContent, i, hex);
+					item = arrayPath.Append ((index + i).ToString ());
+
+					children [i] = ObjectValue.CreatePrimitive (ValueSource, item, elementTypeString,
+					                                            new EvaluationResult (valStr), ObjectValueFlags.ArrayElement);
+				}
+			}
+			else if (elementType is ArrayType) {
+				var elementArrayType = elementType as ArrayType;
+
+				for (int i = elementsToDisplay - 1; i >= 0; i--){
+					item = arrayPath.Append ((index + i).ToString ());
+
+					long subArrayLength;
+					long subArrayFirstPointer;
+					ExamArrayInfo (rawArrayContent, i * sizeOfElement, out subArrayLength, out subArrayFirstPointer);
+
+					children [i] = EvaluateArray (subArrayLength, subArrayFirstPointer, elementArrayType, 
+					                              ObjectValueFlags.ArrayElement, item);
+					cacheNode.Set(new ObjectCacheNode(item.LastName, elementArrayType, (subArrayFirstPointer+i*sizeOfElement).ToString()));
+				}
+			}
+			else if (elementType is PointerType || 
+			         elementType is InterfaceType || 
+			         elementType is ClassType) {
+
+				for (int i = 0; i < elementsToDisplay; i++) {
+					item = arrayPath.Append ((index + i).ToString ());
+
+					long elementPointer;
+					if (sizeOfElement == 4)
+						elementPointer = BitConverter.ToInt32 (rawArrayContent, i * 4);
+					else
+						elementPointer = BitConverter.ToInt64 (rawArrayContent, i * 8);
+
+					children [i] = EvaluateVariable (elementPointer.ToString (), elementType, ObjectValueFlags.ArrayElement, item);
+					cacheNode.Set(new ObjectCacheNode(item.LastName, elementType, (elementPointer+i*sizeOfElement).ToString()));
+				}
+			}
+			else if (elementType is StructType/* || elementType is UnionType*/) {
+				// Get struct size or perhaps just get the struct meta information from gdb
+				//return ObjectValue.CreateNotSupported (ValueSource, path, t.ToCode (), "Struct/Union arrays can't be examined yet", flags);
+			} 
+
+			return children;
 		}
 
 		public EvaluationResult SetValue (ObjectPath path, string value, EvaluationOptions options)
@@ -150,20 +231,20 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (ms.Definition.EndLocation > this.codeLocation)
 				return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base.ToString (), BuildObjectValueFlags (ms));
 
-			return EvaluateVariable (variableName, ms.Base, BuildObjectValueFlags (ms), new ObjectPath (variableName));
+			var v = EvaluateVariable (variableName, ms.Base, BuildObjectValueFlags (ms), new ObjectPath (variableName));
+			cacheRoot.Set(new ObjectCacheNode(variableName, ms.Base, variableName));
+			return v;
 		}
 
-		public ObjectValue EvaluateVariable (string exp, AbstractType t, ObjectValueFlags flags, ObjectPath path)
+		ObjectValue EvaluateVariable (string exp, AbstractType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			t = DResolver.StripAliasSymbol (t);
 
 			if (t is PrimitiveType)
 				return EvaluatePrimitive (exp, t as PrimitiveType, flags, path);
-			else if (t is PointerType) {
-				// Read address the pointer points at
-
-				// Make the pointer value a child
-			} else if (t is ArrayType)
+			else if (t is PointerType)
+				return EvaluatePointer(exp, t as PointerType, flags, path);
+			else if (t is ArrayType)
 				return EvaluateArray (exp, t as ArrayType, flags, path);
 			else if (t is AssocArrayType)
 				return EvaluateAssociativeArray (exp, t as AssocArrayType, flags, path);
@@ -181,7 +262,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		ObjectValue EvaluatePrimitive (string exp, PrimitiveType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			byte[] rawBytes;
-			if (!Memory.Read ("(int[])" + exp, DGdbTools.SizeOf (t.TypeToken), out rawBytes))
+			if (!Memory.Read ("(void[])" + exp, DGdbTools.SizeOf (t.TypeToken), out rawBytes))
 				return ObjectValue.CreateError (ValueSource, path, t.ToCode (), null, flags);
 
 			return EvaluatePrimitive (rawBytes, 0, t, flags, path);
@@ -203,11 +284,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return EvaluateArray (header.Length.ToInt64 (), header.FirstItem.ToInt64 (), t, flags, path);
 		}
 
-		ObjectValue EvaluateArray (byte[] rawBytes, int start, ArrayType t, ObjectValueFlags flags, ObjectPath path)
+		void ExamArrayInfo(byte[] rawBytes, int start, out long arrayLength, out long firstItem)
 		{
-			long arrayLength;
-			long firstItem;
-
 			if (IntPtr.Size == 4) {
 				arrayLength = BitConverter.ToInt32 (rawBytes, start);
 				firstItem = BitConverter.ToInt32 (rawBytes, start + 4);
@@ -215,6 +293,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 				arrayLength = BitConverter.ToInt64 (rawBytes, start);
 				firstItem = BitConverter.ToInt64 (rawBytes, start + 8);
 			}
+		}
+
+		ObjectValue EvaluateArray (byte[] rawBytes, int start, ArrayType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			long arrayLength, firstItem;
+			ExamArrayInfo (rawBytes, start, out arrayLength, out firstItem);
 
 			return EvaluateArray (arrayLength, firstItem, t, flags, path);
 		}
@@ -225,73 +309,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return ObjectValue.CreateNullObject (ValueSource, path, t.ToCode (), flags | ObjectValueFlags.Array);
 
 			var elementType = DResolver.StripAliasSymbol (t.ValueType);
-			var elementsToDisplay = (int)Math.Min (arrayLength, MaximumDisplayCount);
-			var sizeOfElement = SizeOf (elementType);
-
-			byte[] rawArrayContent;
-			Memory.Read (firstItemPointer.ToString (), sizeOfElement * elementsToDisplay, out rawArrayContent);
-
-
 			var elementTypeToken = elementType is PrimitiveType ? (elementType as PrimitiveType).TypeToken : DTokens.INVALID;
+
 			// Strings
 			if (DGdbTools.IsCharType (elementTypeToken)) {
+				var elementsToDisplay = (int)Math.Min (arrayLength, MaximumDisplayCount);
+				byte[] rawArrayContent;
+				Memory.Read (firstItemPointer.ToString (), DGdbTools.SizeOf(elementTypeToken) * elementsToDisplay, out rawArrayContent);
+
 				var str = DGdbTools.GetStringValue (rawArrayContent, elementTypeToken);
 				return ObjectValue.CreatePrimitive (ValueSource, path, t.ToString (), new EvaluationResult (str, arrayLength.ToString () + "´\"" + str + "\""), flags);
 			}
 
-			var children = new ObjectValue[elementsToDisplay];
-			;
-
-			// Primitives
-			if (elementTypeToken != DTokens.INVALID) {
-				var valFunc = DGdbTools.GetValueFunction (elementTypeToken);
-				//var valueSb = new StringBuilder (arrayLength.ToString()).Append("´[");
-				var elementTypeString = elementType.ToCode ();
-				var hex = DisplayAsHex;
-				for (int i = 0; i < elementsToDisplay; i++) {
-					var valStr = valFunc (rawArrayContent, i, hex);
-
-					children [i] = ObjectValue.CreatePrimitive (ValueSource, path.Append (i.ToString ()), elementTypeString,
-					                                            new EvaluationResult (valStr), ObjectValueFlags.ArrayElement);
-					//valueSb.Append (valStr).Append(',');
-				}
-
-				// if (arrayLength > 0)	valueSb.Remove (valueSb.Length - 1, 1);
-
-				//valueSb.Append (']');
-
-				var ov = ObjectValue.CreateArray (ValueSource, path, t.ToCode (), (int)arrayLength, flags, children);
-				//ov.DisplayValue = valueSb.ToString ();
-				return ov;
-			}
-
-			if (elementType is ArrayType) {
-				var elementArrayType = elementType as ArrayType;
-
-				for (int i = elementsToDisplay - 1; i >= 0; i--)
-					children [i] = EvaluateArray (rawArrayContent, i * sizeOfElement, 
-					                              elementArrayType, 
-					                              ObjectValueFlags.ArrayElement, 
-					                              path.Append (i.ToString ()));
-
-			} else if (elementType is StructType/* || elementType is UnionType*/) {
-				// Get struct size or perhaps just get the struct meta information from gdb
-				return ObjectValue.CreateNotSupported (ValueSource, path, t.ToCode (), "Struct/Union arrays can't be examined yet", flags);
-			} else if (elementType is PointerType || elementType is InterfaceType || elementType is ClassType) {
-
-				for (int i = 0; i < elementsToDisplay; i++) {
-					long elementPointer;
-					if (sizeOfElement == 4)
-						elementPointer = BitConverter.ToInt32 (rawArrayContent, i * 4);
-					else
-						elementPointer = BitConverter.ToInt64 (rawArrayContent, i * 8);
-
-					children [i] = EvaluateVariable (elementPointer.ToString (), elementType, ObjectValueFlags.ArrayElement, path.Append (i.ToString ()));
-				}
-			}
-
-
-			return ObjectValue.CreateArray (ValueSource, path, t.ToCode (), (int)arrayLength, flags, children);
+			return ObjectValue.CreateArray (ValueSource, path, t.ToCode (), (int)arrayLength, flags, null);
 		}
 
 		ObjectValue EvaluateAssociativeArray (string exp, AssocArrayType t, ObjectValueFlags flags, ObjectPath path)
@@ -302,6 +332,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 		ObjectValue EvaluateStructInstance (string exp, StructType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			return null;
+		}
+
+		ObjectValue EvaluatePointer(string exp, PointerType t, ObjectValueFlags flags, ObjectPath path)
+		{
+			return EvaluateVariable("*(int**)"+exp, t.Base, flags, path);
 		}
 
 		ObjectValue EvaluateClassInstance (string exp, ObjectValueFlags flags, ObjectPath path)
@@ -357,7 +392,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 					} else if (memberType is ArrayType) {
 						objectMembers.Add (EvaluateArray (bytes, currentOffset, memberType as ArrayType, memberFlags, memberPath));
 
-					} else if (memberType is PointerType ||
+					} 
+					else if (memberType is PointerType ||
 						memberType is InterfaceType ||
 						memberType is ClassType) {
 						long ptr;
