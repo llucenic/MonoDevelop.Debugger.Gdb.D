@@ -75,20 +75,25 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if(node == null)
 				return Backtrace.GetChildren(path, index, count, options);
 
-			ObjectValue[] children = null;
+			ObjectValue[] children;
 
 			if (node.NodeType is ArrayType)
-				children = GetChildren (node, path, node.addressExpression, node.NodeType as ArrayType, index, count, options);
+				children = GetChildren (node, path, index, count, options);
+			else if (node.NodeType is ClassType)
+				children = GetClassInstanceChildren (node, path, options);
+			else
+				children = new ObjectValue[0];
 
 			return children;
 		}
 
-		public ObjectValue[] GetChildren(ObjectCacheNode cacheNode,ObjectPath arrayPath, string exp, ArrayType t, int index, int elementsToDisplay, EvaluationOptions options)
+		public ObjectValue[] GetChildren(ObjectCacheNode cacheNode,ObjectPath arrayPath, int index, int elementsToDisplay, EvaluationOptions options)
 		{
+			var t = cacheNode.NodeType as ArrayType;
 			var elementType = DResolver.StripAliasSymbol (t.ValueType);
 			var sizeOfElement = SizeOf (elementType);
 
-			var header = Memory.ReadDArrayHeader (exp);
+			var header = Memory.ReadDArrayHeader (cacheNode.addressExpression);
 			elementsToDisplay = Math.Min (header.Length.ToInt32 (), index + elementsToDisplay);
 
 			byte[] rawArrayContent;
@@ -141,7 +146,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					else
 						elementPointer = BitConverter.ToInt64 (rawArrayContent, i * 8);
 
-					children [i] = EvaluateVariable (elementPointer.ToString (), elementType, ObjectValueFlags.ArrayElement, item);
+					children [i] = EvaluateVariable (elementPointer.ToString (), ref elementType, ObjectValueFlags.ArrayElement, item);
 					cacheNode.Set(new ObjectCacheNode(item.LastName, elementType, (elementPointer+i*sizeOfElement).ToString()));
 				}
 			}
@@ -151,6 +156,75 @@ namespace MonoDevelop.Debugger.Gdb.D
 			} 
 
 			return children;
+		}
+
+		public ObjectValue[] GetClassInstanceChildren(ObjectCacheNode cacheNode,ObjectPath classPath, EvaluationOptions options)
+		{
+			string typeName;
+
+			var objectMembers = new List<ObjectValue> ();
+
+			// read in the object bytes -- The length of an object can be read dynamically and thus the primary range of bytes that contain object properties.
+			var bytes = Memory.ReadObjectBytes (cacheNode.addressExpression);
+
+			var members = MemberLookup.ListMembers (cacheNode.NodeType as TemplateIntermediateType, resolutionCtx);
+
+			var currentOffset = DGdbTools.CalcOffset (2); // Skip pointer to vtbl[] and monitor
+			var memberLength = IntPtr.Size;
+
+			foreach (var member in members) {
+				var memberType = DResolver.StripAliasSymbol (member.Base);
+				var memberFlags = BuildObjectValueFlags (member) | ObjectValueFlags.Field;
+				var memberPath = classPath.Append (member.Name);
+
+				var newSize = SizeOf (memberType);
+
+				/*
+				 * Very important on x64: if a long, array or pointer follows e.g. an int value, it'll be aligned to an 8 byte-base again.
+				 */
+				if (newSize % IntPtr.Size == 0 && memberLength < IntPtr.Size)
+					currentOffset += currentOffset % IntPtr.Size;
+
+				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
+				if(member is InterfaceType){
+					currentOffset += IntPtr.Size;
+					continue;
+				}
+
+				memberLength = newSize;
+
+				try {
+					if (memberType is PrimitiveType) {
+						objectMembers.Add (EvaluatePrimitive (bytes, currentOffset, memberType as PrimitiveType, memberFlags, memberPath)); 
+
+					} else if (memberType is ArrayType) {
+						objectMembers.Add (EvaluateArray (bytes, currentOffset, memberType as ArrayType, memberFlags, memberPath));
+					} 
+					else if (memberType is PointerType ||
+					         memberType is InterfaceType ||
+					         memberType is ClassType) {
+						long ptr;
+						if (memberLength == 4)
+							ptr = BitConverter.ToInt32 (bytes, currentOffset);
+						else
+							ptr = BitConverter.ToInt64 (bytes, currentOffset);
+
+						if (ptr < 1)
+							objectMembers.Add (ObjectValue.CreateNullObject (ValueSource, memberPath, memberType.ToCode(), memberFlags));
+						else
+							objectMembers.Add (EvaluateVariable (ptr.ToString (),ref memberType, memberFlags, memberPath));
+					}
+				} catch (Exception ex) {
+					memberLength = memberLength;
+				}
+				//TODO: Structs
+
+				// TODO: use alignof property instead of constant
+				cacheNode.Set (new ObjectCacheNode (member.Name, memberType, cacheNode.addressExpression + "+" + currentOffset));
+				currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
+			}
+
+			return objectMembers.ToArray ();
 		}
 
 		public EvaluationResult SetValue (ObjectPath path, string value, EvaluationOptions options)
@@ -231,12 +305,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (ms.Definition.EndLocation > this.codeLocation)
 				return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base.ToString (), BuildObjectValueFlags (ms));
 
-			var v = EvaluateVariable (variableName, ms.Base, BuildObjectValueFlags (ms), new ObjectPath (variableName));
-			cacheRoot.Set(new ObjectCacheNode(variableName, ms.Base, variableName));
+			var baseType = ms.Base;
+			var v = EvaluateVariable (variableName, ref baseType, BuildObjectValueFlags (ms), new ObjectPath (variableName));
+			cacheRoot.Set(new ObjectCacheNode(variableName, baseType, variableName));
 			return v;
 		}
 
-		ObjectValue EvaluateVariable (string exp, AbstractType t, ObjectValueFlags flags, ObjectPath path)
+		ObjectValue EvaluateVariable (string exp, ref AbstractType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			t = DResolver.StripAliasSymbol (t);
 
@@ -249,7 +324,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else if (t is AssocArrayType)
 				return EvaluateAssociativeArray (exp, t as AssocArrayType, flags, path);
 			else if (t is ClassType)
-				return EvaluateClassInstance (exp, flags, path);
+				return EvaluateClassInstance (exp, flags, path, out t);
 			else if (t is InterfaceType) {
 				/*
 				IntPtr lOffset;
@@ -336,87 +411,30 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue EvaluatePointer(string exp, PointerType t, ObjectValueFlags flags, ObjectPath path)
 		{
-			return EvaluateVariable("*(int**)"+exp, t.Base, flags, path);
+			var ptBase = t.Base;
+			return EvaluateVariable("*(int**)"+exp, ref ptBase, flags, path);
 		}
 
-		ObjectValue EvaluateClassInstance (string exp, ObjectValueFlags flags, ObjectPath path)
+		ObjectValue EvaluateClassInstance (string exp, ObjectValueFlags flags, ObjectPath path, out AbstractType actualClassType)
 		{
 			string representativeDisplayValue = Backtrace.DSession.ObjectToStringExam.InvokeToString (exp);
 			// This is the current object instance type
 			// which might be different from the declared type due to inheritance or interfacing
-			TemplateIntermediateType actualClassType;
-			string typeName;
+			var typeName = Memory.ReadDynamicObjectTypeString (exp);
 
-			var objectMembers = new List<ObjectValue> ();
+			if (string.IsNullOrEmpty (representativeDisplayValue))
+				representativeDisplayValue = typeName;
 
-			// read in the object bytes -- The length of an object can be read dynamically and thus the primary range of bytes that contain object properties.
-			var bytes = Memory.ReadObjectBytes (exp, out typeName, out actualClassType, resolutionCtx);
+			DToken optToken;
+			var bt = DParser.ParseBasicType (typeName, out optToken);
+			actualClassType = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx);
 
 			if (actualClassType == null) {
-
-				// Try to read information from gdb -- this should be already done in the Backtrace implementation!
-
-				return ObjectValue.CreateObject (ValueSource, path, typeName, (string)null, flags, null);
+				Backtrace.DSession.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+typeName+"\n");
+				Backtrace.DSession.LogWriter (false,"Ctxt: "+resolutionCtx.ScopedBlock.ToString()+"\n");
 			}
 
-			var members = MemberLookup.ListMembers (actualClassType, resolutionCtx);
-
-			var currentOffset = DGdbTools.CalcOffset (2); // Skip pointer to vtbl[] and monitor
-			var memberLength = IntPtr.Size;
-
-			foreach (var member in members) {
-				var memberType = DResolver.StripAliasSymbol (member.Base);
-				var memberFlags = BuildObjectValueFlags (member) | ObjectValueFlags.Field;
-				var memberPath = path.Append (member.Name);
-
-				var newSize = SizeOf (memberType);
-
-				/*
-				 * Very important on x64: if a long, array or pointer follows e.g. an int value, it'll be aligned to an 8 byte-base again.
-				 */
-				if (newSize % IntPtr.Size == 0 && memberLength < IntPtr.Size)
-					currentOffset += currentOffset % IntPtr.Size;
-
-				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
-				if(member is InterfaceType){
-					currentOffset += IntPtr.Size;
-					continue;
-				}
-
-				memberLength = newSize;
-
-				try {
-					if (memberType is PrimitiveType) {
-						objectMembers.Add (EvaluatePrimitive (bytes, currentOffset, memberType as PrimitiveType, memberFlags, memberPath)); 
-
-					} else if (memberType is ArrayType) {
-						objectMembers.Add (EvaluateArray (bytes, currentOffset, memberType as ArrayType, memberFlags, memberPath));
-
-					} 
-					else if (memberType is PointerType ||
-						memberType is InterfaceType ||
-						memberType is ClassType) {
-						long ptr;
-						if (memberLength == 4)
-							ptr = BitConverter.ToInt32 (bytes, currentOffset);
-						else
-							ptr = BitConverter.ToInt64 (bytes, currentOffset);
-
-						if (ptr < 1)
-							objectMembers.Add (ObjectValue.CreateNullObject (ValueSource, memberPath, memberType.ToCode(), memberFlags));
-						else
-							objectMembers.Add (EvaluateVariable (ptr.ToString (), memberType, memberFlags, memberPath));
-					}
-				} catch (Exception ex) {
-					memberLength = memberLength;
-				}
-				//TODO: Structs
-
-				// TODO: use alignof property instead of constant
-				currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
-			}
-
-			return ObjectValue.CreateObject (ValueSource, path, actualClassType.ToCode (), representativeDisplayValue, flags, objectMembers.ToArray ());
+			return ObjectValue.CreateObject (ValueSource, path, typeName, representativeDisplayValue, flags, null);
 		}
 
 		int SizeOf (AbstractType t)

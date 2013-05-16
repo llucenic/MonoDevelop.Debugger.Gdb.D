@@ -97,11 +97,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return Read (arrayInfo.FirstItem.ToString (), arrayInfo.Length.ToInt32 () * itemSize, out data);
 		}
 
-		public byte[] ReadObjectBytes (string exp, out string rawTypeName, out TemplateIntermediateType ctype, ResolutionContext resolutionCtx)
+		public string ReadDynamicObjectTypeString(string exp)
 		{
-			rawTypeName = null;
-			ctype = null;
+			return ReadString("***(int*)(" + exp + ")+" + DGdbTools.CalcOffset(1));
+		}
 
+		public byte[] ReadObjectBytes (string exp)
+		{
 			// read the object's length
 			// It's stored in obj.classinfo.init.length
 			// See http://dlang.org/phobos/object.html#.TypeInfo_Class
@@ -118,22 +120,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			byte[] lBytes;
 			Read(exp, objectSize.ToInt32(), out lBytes);
 
-			// read the dynamic type of the instance:
-			// this is the second string in Class Info memory structure with offset 16 (10h) - already demangled
-			// == obj.classinfo.name
-			rawTypeName = ReadString("***(int*)(" + exp + ")+" + DGdbTools.CalcOffset(1));
-
-			// Try to resolve the abstract type and establish a connection between physical and virtual data spheres
-			DToken optToken;
-			var bt = DParser.ParseBasicType (rawTypeName, out optToken);
-			var t = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx);
-			if(t == null)
-			{
-				Session.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+rawTypeName+"\n");
-				Session.LogWriter (false,"Ctxt: "+resolutionCtx.ScopedBlock.ToString()+"\n");
-				Session.LogWriter (false,"Resolved Type: "+(t == null ? "null" : t.ToCode())+"\n---------\n");
-			}
-			ctype = t as TemplateIntermediateType;
 			return lBytes;
 		}
 
