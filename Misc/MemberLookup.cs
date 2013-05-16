@@ -18,10 +18,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 		}
 
-		public static List<MemberSymbol> ListMembers(TemplateIntermediateType tiType, ResolutionContext ctx)
+		/// <summary>
+		/// Lists the members.
+		/// The List may contain MemberSymbols as well as InterfaceTypes
+		/// </summary>
+		public static List<DSymbol> ListMembers(TemplateIntermediateType tiType, ResolutionContext ctx)
 		{
 			var lMembers = MemberLookup.GetMembers(tiType, ctx);
-			var members = new List<MemberSymbol>();
+			var members = new List<DSymbol>();
 			if (lMembers != null && lMembers.Length > 0) {
 				foreach (var kvp in lMembers) {
 					if (kvp.Value != null && kvp.Value.Length > 0) {
@@ -29,7 +33,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 							members.Add(ms);
 						}
 					}
+					if (kvp.Key.BaseInterfaces != null && kvp.Key.BaseInterfaces.Length > 0)
+			            foreach (var itf in kvp.Key.BaseInterfaces)
+			              members.Add(itf);
 				}
+
 			}
 			return members;
 		}

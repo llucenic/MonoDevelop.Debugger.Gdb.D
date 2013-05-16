@@ -342,6 +342,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 				if (newSize % IntPtr.Size == 0 && memberLength < IntPtr.Size)
 					currentOffset += currentOffset % IntPtr.Size;
 
+				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
+				if(member is InterfaceType){
+					currentOffset += IntPtr.Size;
+					continue;
+				}
+
 				memberLength = newSize;
 
 				try {
@@ -392,7 +398,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return IntPtr.Size;
 		}
 
-		public static ObjectValueFlags BuildObjectValueFlags (MemberSymbol ds)
+		public static ObjectValueFlags BuildObjectValueFlags (DSymbol ds)
 		{
 			var baseType = ds is MemberSymbol ? ds.Base : ds;
 			ObjectValueFlags f = ObjectValueFlags.None;
@@ -404,15 +410,18 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else if (baseType is ArrayType)
 				f |= ObjectValueFlags.Array;
 
-			var defParent = ds.Definition.Parent;
+			if(ds is MemberSymbol)
+			{
+				var defParent = ds.Definition.Parent;
 
-			if (defParent is DModule)
-				f |= ObjectValueFlags.Global;
-			else if (defParent is DMethod) {
-				if ((defParent as DMethod).Parameters.Contains (ds.Definition))
-					f |= ObjectValueFlags.Parameter;
-				else
-					f |= ObjectValueFlags.Variable;
+				if (defParent is DModule)
+					f |= ObjectValueFlags.Global;
+				else if (defParent is DMethod) {
+					if ((defParent as DMethod).Parameters.Contains (ds.Definition))
+						f |= ObjectValueFlags.Parameter;
+					else
+						f |= ObjectValueFlags.Variable;
+				}
 			}
 
 			return f;
