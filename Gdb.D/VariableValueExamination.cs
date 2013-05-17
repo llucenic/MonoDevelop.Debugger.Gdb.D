@@ -81,6 +81,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 				children = GetChildren (node, path, index, count, options);
 			else if (node.NodeType is ClassType)
 				children = GetClassInstanceChildren (node, path, options);
+			else if (node.NodeType is StructType) {
+				children = Backtrace.GetChildren(path, index, count, options);
+			}
 			else
 				children = new ObjectValue[0];
 
@@ -324,12 +327,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else if (t is AssocArrayType)
 				return EvaluateAssociativeArray (exp, t as AssocArrayType, flags, path);
 			else if (t is ClassType)
-				return EvaluateClassInstance (exp, flags, path, out t);
+				return EvaluateClassInstance (exp, flags, path, ref t);
 			else if (t is InterfaceType) {
 				/*
 				IntPtr lOffset;
 				byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);*/
 			}
+			else if(t is StructType)
+				return EvaluateStructInstance(exp, t as StructType, flags, path);
 
 			return null;
 		}
@@ -406,7 +411,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue EvaluateStructInstance (string exp, StructType t, ObjectValueFlags flags, ObjectPath path)
 		{
-			return null;
+			return ObjectValue.CreateObject(ValueSource, path, t.ToCode(), t.ToCode(), flags, null);
 		}
 
 		ObjectValue EvaluatePointer(string exp, PointerType t, ObjectValueFlags flags, ObjectPath path)
@@ -415,19 +420,28 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return EvaluateVariable("*(int**)"+exp, ref ptBase, flags, path);
 		}
 
-		ObjectValue EvaluateClassInstance (string exp, ObjectValueFlags flags, ObjectPath path, out AbstractType actualClassType)
+		ObjectValue EvaluateClassInstance (string exp, ObjectValueFlags flags, ObjectPath path, ref AbstractType actualClassType)
 		{
+			// Check if null
+			IntPtr ptr;
+
+			if (!Memory.Read (MemoryExamination.EnforceReadRawExpression+exp, out ptr) || ptr.ToInt64 () < 1)
+				return ObjectValue.CreateNullObject (ValueSource, path, actualClassType == null ? "<Unkown type>" : actualClassType.ToCode (), flags);
+
+			// Invoke and evaluate object's toString()
 			string representativeDisplayValue = Backtrace.DSession.ObjectToStringExam.InvokeToString (exp);
-			// This is the current object instance type
+
+			// Read the current object instance type
 			// which might be different from the declared type due to inheritance or interfacing
 			var typeName = Memory.ReadDynamicObjectTypeString (exp);
 
 			if (string.IsNullOrEmpty (representativeDisplayValue))
 				representativeDisplayValue = typeName;
 
+			// Interpret & resolve the parsed string so it'll become accessible for abstract examination
 			DToken optToken;
 			var bt = DParser.ParseBasicType (typeName, out optToken);
-			actualClassType = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx);
+			actualClassType = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx) ?? actualClassType;
 
 			if (actualClassType == null) {
 				Backtrace.DSession.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+typeName+"\n");
