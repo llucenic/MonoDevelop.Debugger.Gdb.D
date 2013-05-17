@@ -55,7 +55,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 	/// </summary>
 	class MemoryExamination
 	{
-		public const char EnforceReadRawExpression = '$';
+		public const char EnforceReadRawExpression = '§';
 		public readonly GdbSession Session;
 
 		public MemoryExamination (GdbSession sess)

@@ -138,17 +138,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			session.SelectThread(threadId);
 			return Variables.EvaluateVariable (exp);
-			/*
-			try {
-
-				exp = exp.Replace("\"", "\\\"");
-
-				return Variables.CreateObjectValue(exp, Variables.AdaptVarObjectForD(exp));
-			}
-			catch (Exception e) {
-				// just for debugging purposes
-				return ObjectValue.CreateUnknown(exp + " - Gdb.D Exception: " + e.Message);
-			}*/
 		}
 
 		/// <summary>
