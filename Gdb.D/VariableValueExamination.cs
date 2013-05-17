@@ -94,10 +94,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var sizeOfElement = SizeOf (elementType);
 
 			var header = Memory.ReadDArrayHeader (cacheNode.addressExpression);
-			elementsToDisplay = Math.Min (header.Length.ToInt32 (), index + elementsToDisplay);
+			elementsToDisplay = Math.Min (header.Length.ToInt32 (), index + elementsToDisplay) - index;
 
 			byte[] rawArrayContent;
-			Memory.Read ((header.FirstItem.ToInt64() + index).ToString (), sizeOfElement * elementsToDisplay, out rawArrayContent);
+			Memory.Read ((header.FirstItem.ToInt64() + index * sizeOfElement).ToString (), sizeOfElement * elementsToDisplay, out rawArrayContent);
 
 			var children = new ObjectValue[elementsToDisplay];
 			ObjectPath item;
@@ -111,7 +111,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var hex = DisplayAsHex;
 
 				for (int i = 0; i < elementsToDisplay; i++) {
-					var valStr = valFunc (rawArrayContent, i, hex);
+					var valStr = valFunc (rawArrayContent, i * sizeOfElement, hex);
 					item = arrayPath.Append ((index + i).ToString ());
 
 					children [i] = ObjectValue.CreatePrimitive (ValueSource, item, elementTypeString,
@@ -220,7 +220,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				//TODO: Structs
 
 				// TODO: use alignof property instead of constant
-				cacheNode.Set (new ObjectCacheNode (member.Name, memberType, cacheNode.addressExpression + "+" + currentOffset));
+				cacheNode.Set (new ObjectCacheNode (member.Name, memberType, MemoryExamination.EnforceReadRawExpression+"((void*)"+cacheNode.addressExpression + "+" + currentOffset+")"));
 				currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
 			}
 

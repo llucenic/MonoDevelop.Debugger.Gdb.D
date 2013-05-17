@@ -55,6 +55,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 	/// </summary>
 	class MemoryExamination
 	{
+		public const char EnforceReadRawExpression = '$';
 		public readonly GdbSession Session;
 
 		public MemoryExamination (GdbSession sess)
@@ -141,10 +142,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region Generic
+		bool enforceRawExpr(ref string exp)
+		{
+			if (/*!string.IsNullOrEmpty (exp) &&*/ exp [0] == EnforceReadRawExpression) {
+				exp = exp.Substring (1);
+				return true;
+			}
+			return false;
+		}
+
 		public bool Read (string exp, int count, out IntPtr[] v)
 		{
 			byte[] rawBytes;
-			if (!Read ("(int[])"+exp, count * IntPtr.Size, out rawBytes)) {
+			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int[])"+exp), count * IntPtr.Size, out rawBytes)) {
 				v = null;
 				return false;
 			}
@@ -164,7 +174,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public bool Read (string exp, out IntPtr v)
 		{
 			byte[] rawBytes;
-			if (!Read ("(int)"+exp, IntPtr.Size, out rawBytes)) {
+			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int)"+exp), IntPtr.Size, out rawBytes)) {
 				v = new IntPtr();
 				return false;
 			}
