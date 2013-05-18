@@ -79,11 +79,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			if (node.NodeType is ArrayType)
 				children = GetChildren (node, path, index, count, options);
-			else if (node.NodeType is ClassType)
+			else if (node.NodeType is ClassType || node.NodeType is StructType)
 				children = GetClassInstanceChildren (node, path, options);
-			else if (node.NodeType is StructType) {
-				children = Backtrace.GetChildren(path, index, count, options);
-			}
 			else
 				children = new ObjectValue[0];
 
@@ -161,40 +158,74 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return children;
 		}
 
-		public ObjectValue[] GetClassInstanceChildren(ObjectCacheNode cacheNode,ObjectPath classPath, EvaluationOptions options)
+		List<Tuple<MemberSymbol,int>> GetMembersWithOffsets(TemplateIntermediateType tit, out int size)
 		{
-			string typeName;
+			var members = new List<Tuple<MemberSymbol,int>> ();
 
-			var objectMembers = new List<ObjectValue> ();
+			if (tit is ClassType)
+				size = DGdbTools.CalcOffset (2);
+			else if (tit is StructType || tit is UnionType)
+				size = 0;
+			else
+				throw new ArgumentException ("Can only estimate size of classes, structs and unions");
 
-			// read in the object bytes -- The length of an object can be read dynamically and thus the primary range of bytes that contain object properties.
-			var bytes = Memory.ReadObjectBytes (cacheNode.addressExpression);
-
-			var members = MemberLookup.ListMembers (cacheNode.NodeType as TemplateIntermediateType, resolutionCtx);
-
-			var currentOffset = DGdbTools.CalcOffset (2); // Skip pointer to vtbl[] and monitor
 			var memberLength = IntPtr.Size;
 
-			foreach (var member in members) {
-				var memberType = DResolver.StripAliasSymbol (member.Base);
-				var memberFlags = BuildObjectValueFlags (member) | ObjectValueFlags.Field;
-				var memberPath = classPath.Append (member.Name);
+			foreach (var ds in MemberLookup.ListMembers(tit, resolutionCtx)) {
 
-				var newSize = SizeOf (memberType);
+				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
+				if(ds is InterfaceType){
+					size += IntPtr.Size;
+					continue;
+				}
+
+				var ms = ds as MemberSymbol;
+
+				if (ms == null)
+					throw new InvalidDataException ("ds must be a MemberSymbol, not "+ds.ToCode());
+
+				var newSize = SizeOf (ms.Base);
 
 				/*
 				 * Very important on x64: if a long, array or pointer follows e.g. an int value, it'll be aligned to an 8 byte-base again.
 				 */
-				if (newSize % IntPtr.Size == 0 && memberLength < IntPtr.Size)
-					currentOffset += currentOffset % IntPtr.Size;
-
-				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
-				if(member is InterfaceType){
-					currentOffset += IntPtr.Size;
-					continue;
-				}
-
+				if (memberLength < IntPtr.Size && newSize % IntPtr.Size == 0)
+					size += size % IntPtr.Size;
 				memberLength = newSize;
+
+				members.Add (new Tuple<MemberSymbol, int>(ms, size));
+
+				size += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
+			}
+
+			return members;
+		}
+
+		public ObjectValue[] GetClassInstanceChildren(ObjectCacheNode cacheNode,ObjectPath classPath, EvaluationOptions options)
+		{
+			bool isStruct = cacheNode.NodeType is StructType;
+
+			var objectMembers = new List<ObjectValue> ();
+
+			int objectSize;
+			var members = GetMembersWithOffsets (cacheNode.NodeType as TemplateIntermediateType, out objectSize);
+
+			// read in the object bytes -- The length of an object can be read dynamically and thus the primary range of bytes that contain object properties.
+			byte[] bytes;
+
+			if (isStruct) {
+				Memory.Read ("&(" + cacheNode.addressExpression + ")", objectSize, out bytes);
+			}
+			else
+				bytes = Memory.ReadObjectBytes (cacheNode.addressExpression);
+
+			foreach (var kv in members) {
+				var member = kv.Item1;
+				var currentOffset = kv.Item2;
+
+				var memberType = DResolver.StripAliasSymbol (member.Base);
+				var memberFlags = BuildObjectValueFlags (member) | ObjectValueFlags.Field;
+				var memberPath = classPath.Append (member.Name);
 
 				try {
 					if (memberType is PrimitiveType) {
@@ -207,7 +238,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					         memberType is InterfaceType ||
 					         memberType is ClassType) {
 						long ptr;
-						if (memberLength == 4)
+						if (IntPtr.Size == 4)
 							ptr = BitConverter.ToInt32 (bytes, currentOffset);
 						else
 							ptr = BitConverter.ToInt64 (bytes, currentOffset);
@@ -217,14 +248,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 						else
 							objectMembers.Add (EvaluateVariable (ptr.ToString (),ref memberType, memberFlags, memberPath));
 					}
+					else if(memberType is StructType)
+						objectMembers.Add(EvaluateStructInstance(memberType as StructType, memberFlags, memberPath));
 				} catch (Exception ex) {
-					memberLength = memberLength;
+
 				}
-				//TODO: Structs
 
 				// TODO: use alignof property instead of constant
 				cacheNode.Set (new ObjectCacheNode (member.Name, memberType, MemoryExamination.EnforceReadRawExpression+"((void*)"+cacheNode.addressExpression + "+" + currentOffset+")"));
-				currentOffset += memberLength % 4 == 0 ? memberLength : ((memberLength / 4) + 1) * 4;
 			}
 
 			return objectMembers.ToArray ();
@@ -334,7 +365,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);*/
 			}
 			else if(t is StructType)
-				return EvaluateStructInstance(exp, t as StructType, flags, path);
+				return EvaluateStructInstance(t as StructType, flags, path);
 
 			return null;
 		}
@@ -409,7 +440,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return ObjectValue.CreateNotSupported (ValueSource, path, t.ToCode (), "Associative arrays aren't supported yet", flags);
 		}
 
-		ObjectValue EvaluateStructInstance (string exp, StructType t, ObjectValueFlags flags, ObjectPath path)
+		ObjectValue EvaluateStructInstance (/*string exp,*/ StructType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			return ObjectValue.CreateObject(ValueSource, path, t.ToCode(), t.ToCode(), flags, null);
 		}
@@ -453,6 +484,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		int SizeOf (AbstractType t)
 		{
+			t = DResolver.StripAliasSymbol (t);
+
 			if (t is PrimitiveType)
 				return DGdbTools.SizeOf ((t as PrimitiveType).TypeToken);
 
@@ -460,7 +493,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return IntPtr.Size * 2;
 
 			if (t is StructType || t is UnionType) {
-				//TODO: Get type info from gdb and estimate final size via measuring each struct member
+				int size;
+
+				GetMembersWithOffsets(t as TemplateIntermediateType, out size);
+
+				return size;
 			}
 
 			return IntPtr.Size;
@@ -493,51 +530,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 
 			return f;
-		}
-
-		public ObjectValue CreateObjectValue (string name, ResultData data)
-		{
-			if (data == null) {
-				return null;
-			}
-
-			string vname = data.GetValueString ("name");
-			string typeName = data.GetValueString ("type");
-			string value = data.GetValueString ("value");
-			int nchild = data.GetInt ("numchild");
-
-			// added code for handling children
-			// TODO: needs optimising due to large arrays will be rendered with every debug step...
-			object[] childrenObj = data.GetAllValues ("children");
-			ObjectValue[] children = null;
-			if (childrenObj.Length > 0) {
-				children = childrenObj [0] as ObjectValue[];
-			}
-
-			ObjectValue val;
-			ObjectValueFlags flags = ObjectValueFlags.Variable;
-
-			// There can be 'public' et al children for C++ structures
-			if (typeName == null) {
-				typeName = "none";
-			}
-
-			if (typeName.EndsWith ("]") || typeName.EndsWith ("string")) {
-				val = ObjectValue.CreateArray (Backtrace, new ObjectPath (vname), typeName, nchild, flags, children /* added */);
-				if (value == null) {
-					value = "[" + nchild + "]";
-				} else {
-					typeName += ", length: " + nchild;
-				}
-
-				val.DisplayValue = value;
-			} else if (value == "{...}" || typeName.EndsWith ("*") || nchild > 0) {
-				val = ObjectValue.CreateObject (Backtrace, new ObjectPath (vname), typeName, value, flags, children /* added */);
-			} else {
-				val = ObjectValue.CreatePrimitive (Backtrace, new ObjectPath (vname), typeName, new EvaluationResult (value), flags);
-			}
-			val.Name = name;
-			return val;
 		}
 	}
 }
