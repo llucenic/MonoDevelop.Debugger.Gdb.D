@@ -175,6 +175,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
 				if(ds is InterfaceType){
+					// See below
+					if (memberLength < IntPtr.Size)
+						size += size % IntPtr.Size;
+
 					size += IntPtr.Size;
 					continue;
 				}
@@ -214,7 +218,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 			byte[] bytes;
 
 			if (isStruct) {
-				Memory.Read ("&(" + cacheNode.addressExpression + ")", objectSize, out bytes);
+				var exp = cacheNode.addressExpression;
+				Memory.Read (MemoryExamination.enforceRawExpr(ref exp) ? exp : ("&(" + cacheNode.addressExpression + ")"), objectSize, out bytes);
 			}
 			else
 				bytes = Memory.ReadObjectBytes (cacheNode.addressExpression);

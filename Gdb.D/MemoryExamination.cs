@@ -142,7 +142,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region Generic
-		bool enforceRawExpr(ref string exp)
+		public static bool enforceRawExpr(ref string exp)
 		{
 			if (/*!string.IsNullOrEmpty (exp) &&*/ exp [0] == EnforceReadRawExpression) {
 				exp = exp.Substring (1);
