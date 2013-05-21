@@ -53,6 +53,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		CodeLocation codeLocation { get { return firstFrameEditorData != null ? firstFrameEditorData.CaretLocation : CodeLocation.Empty; } }
 
 		IObjectValueSource ValueSource { get { return this; } }
+		ObjectRootCacheNode cacheRoot = new ObjectRootCacheNode();
 
 		bool DisplayAsHex { get { return Backtrace.DSession.EvaluationOptions.IntegerDisplayFormat == IntegerDisplayFormat.Hexadecimal; } }
 		#endregion
@@ -65,9 +66,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		}
 		#endregion
 
-		#region IObjectValueSource implementation
-		ObjectRootCacheNode cacheRoot = new ObjectRootCacheNode();
-
+		#region Member examination
 		public ObjectValue[] GetChildren (ObjectPath path, int index, int count, EvaluationOptions options)
 		{
 			var node = cacheRoot [path];
@@ -76,10 +75,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return Backtrace.GetChildren(path, index, count, options);
 
 			ObjectValue[] children;
+			var t = node.NodeType;
 
-			if (node.NodeType is ArrayType)
-				children = GetChildren (node, path, index, count, options);
-			else if (node.NodeType is ClassType || node.NodeType is StructType)
+			if (t is ArrayType)
+				children = GetArrayChildren (node, path, index, count, options);
+			else if (t is ClassType || t is StructType)
 				children = GetClassInstanceChildren (node, path, options);
 			else
 				children = new ObjectValue[0];
@@ -87,7 +87,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return children;
 		}
 
-		public ObjectValue[] GetChildren(ObjectCacheNode cacheNode,ObjectPath arrayPath, int index, int elementsToDisplay, EvaluationOptions options)
+		public ObjectValue[] GetArrayChildren(ObjectCacheNode cacheNode,ObjectPath arrayPath, int index, int elementsToDisplay, EvaluationOptions options)
 		{
 			var t = cacheNode.NodeType as ArrayType;
 			var elementType = DResolver.StripAliasSymbol (t.ValueType);
@@ -207,7 +207,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public ObjectValue[] GetClassInstanceChildren(ObjectCacheNode cacheNode,ObjectPath classPath, EvaluationOptions options)
 		{
-			bool isStruct = cacheNode.NodeType is StructType;
+			bool isStruct = cacheNode.NodeType is StructType || cacheNode.NodeType is UnionType;
+
+			if (!isStruct && !(cacheNode.NodeType is ClassType))
+				throw new ArgumentException ("Can only handle structs, unions and classes!");
 
 			var objectMembers = new List<ObjectValue> ();
 
@@ -254,7 +257,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 							objectMembers.Add (EvaluateVariable (ptr.ToString (),ref memberType, memberFlags, memberPath));
 					}
 					else if(memberType is StructType)
-						objectMembers.Add(EvaluateStructInstance(memberType as StructType, memberFlags, memberPath));
+						objectMembers.Add(ObjectValue.CreateObject(ValueSource, memberPath, memberType.ToCode(), memberType.ToString(), memberFlags, null));
 				} catch (Exception ex) {
 
 				}
@@ -266,17 +269,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return objectMembers.ToArray ();
 		}
 
-		public EvaluationResult SetValue (ObjectPath path, string value, EvaluationOptions options)
-		{
-			throw new NotImplementedException ();
-		}
-
 		public ObjectValue GetValue (ObjectPath path, EvaluationOptions options)
 		{
 			throw new NotImplementedException ();
 		}
 
 		public object GetRawValue (ObjectPath path, EvaluationOptions options)
+		{
+			throw new NotImplementedException ();
+		}
+		#endregion
+
+		#region Writing values
+		public EvaluationResult SetValue (ObjectPath path, string value, EvaluationOptions options)
 		{
 			throw new NotImplementedException ();
 		}
@@ -312,6 +317,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return true;
 		}
 
+		#region Pre-evaluation (lazy/child-less variable examination)
 		public ObjectValue EvaluateVariable (string variableName)
 		{
 			if (variableName == "this") {
@@ -362,15 +368,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return EvaluateArray (exp, t as ArrayType, flags, path);
 			else if (t is AssocArrayType)
 				return EvaluateAssociativeArray (exp, t as AssocArrayType, flags, path);
+			else if (t is InterfaceType)
+				return EvaluateInterfaceInstance(exp, flags, path, ref t);
 			else if (t is ClassType)
 				return EvaluateClassInstance (exp, flags, path, ref t);
-			else if (t is InterfaceType) {
-				/*
-				IntPtr lOffset;
-				byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);*/
-			}
 			else if(t is StructType)
-				return EvaluateStructInstance(t as StructType, flags, path);
+				return ObjectValue.CreateObject(ValueSource, path, t.ToCode(), t.ToCode(), flags, null);
 
 			return null;
 		}
@@ -400,7 +403,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return EvaluateArray (header.Length.ToInt64 (), header.FirstItem.ToInt64 (), t, flags, path);
 		}
 
-		void ExamArrayInfo(byte[] rawBytes, int start, out long arrayLength, out long firstItem)
+		static void ExamArrayInfo(byte[] rawBytes, int start, out long arrayLength, out long firstItem)
 		{
 			if (IntPtr.Size == 4) {
 				arrayLength = BitConverter.ToInt32 (rawBytes, start);
@@ -445,11 +448,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return ObjectValue.CreateNotSupported (ValueSource, path, t.ToCode (), "Associative arrays aren't supported yet", flags);
 		}
 
-		ObjectValue EvaluateStructInstance (/*string exp,*/ StructType t, ObjectValueFlags flags, ObjectPath path)
-		{
-			return ObjectValue.CreateObject(ValueSource, path, t.ToCode(), t.ToCode(), flags, null);
-		}
-
 		ObjectValue EvaluatePointer(string exp, PointerType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			var ptBase = t.Base;
@@ -460,8 +458,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			// Check if null
 			IntPtr ptr;
-
-			if (!Memory.Read (MemoryExamination.EnforceReadRawExpression+exp, out ptr) || ptr.ToInt64 () < 1)
+			MemoryExamination.enforceRawExpr (ref exp);
+			if (!Memory.Read (exp, out ptr) || 
+			    ptr.ToInt64 () < 1)
 				return ObjectValue.CreateNullObject (ValueSource, path, actualClassType == null ? "<Unkown type>" : actualClassType.ToCode (), flags);
 
 			// Invoke and evaluate object's toString()
@@ -487,6 +486,18 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return ObjectValue.CreateObject (ValueSource, path, typeName, representativeDisplayValue, flags, null);
 		}
 
+		ObjectValue EvaluateInterfaceInstance(string exp, ObjectValueFlags flags, ObjectPath path, ref AbstractType actualClassType)
+		{
+			exp = (MemoryExamination.enforceRawExpr (ref exp) ? MemoryExamination.EnforceReadRawExpression : ' ')+ "**(int*)(" + exp + ")+"+DGdbTools.CalcOffset(3);
+
+			return EvaluateClassInstance(exp, flags, path, ref actualClassType);
+			/*
+				IntPtr lOffset;
+				byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);*/
+		}
+		#endregion
+
+		#region Helpers
 		int SizeOf (AbstractType t)
 		{
 			t = DResolver.StripAliasSymbol (t);
@@ -536,6 +547,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			return f;
 		}
+		#endregion
 	}
 }
 
