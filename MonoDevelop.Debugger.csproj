@@ -103,6 +103,7 @@
     <Compile Include="Gdb.D\ToStringExamination.cs" />
     <Compile Include="Misc\ArrayConversionHelpers.cs" />
     <Compile Include="Gdb.D\ObjectCacheNode.cs" />
+    <Compile Include="Gdb.D\Deh2.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Manifest.addin.xml">
