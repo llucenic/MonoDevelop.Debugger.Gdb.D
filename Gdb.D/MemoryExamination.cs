@@ -56,9 +56,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 	class MemoryExamination
 	{
 		public const char EnforceReadRawExpression = '§';
-		public readonly GdbSession Session;
+		public readonly DGdbSession Session;
 
-		public MemoryExamination (GdbSession sess)
+		public int CalcOffset(int times = 1)
+		{
+			return times * Session.PointerSize;
+		}
+
+		public MemoryExamination (DGdbSession sess)
 		{
 			this.Session = sess;
 		}
@@ -100,7 +105,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public string ReadDynamicObjectTypeString(string exp)
 		{
-			return ReadString("***(int*)(" + exp + ")+" + DGdbTools.CalcOffset(1));
+			return ReadString("***(int*)(" + exp + ")+" + CalcOffset(1));
 		}
 
 		public byte[] ReadObjectBytes (string exp)
@@ -109,7 +114,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// It's stored in obj.classinfo.init.length
 			// See http://dlang.org/phobos/object.html#.TypeInfo_Class
 			IntPtr objectSize;
-			if (!Read ("**(int*)(" + exp + ")+" + DGdbTools.CalcOffset(2), out objectSize)) {
+			if (!Read ("**(int*)(" + exp + ")+" + CalcOffset(2), out objectSize)) {
 				Session.LogWriter (false, "Object (exp=\""+exp+"\") length couldn't be read. Return.\n");
 				return new byte[0];
 			}
@@ -154,19 +159,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public bool Read (string exp, int count, out IntPtr[] v)
 		{
 			byte[] rawBytes;
-			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int[])"+exp), count * IntPtr.Size, out rawBytes)) {
+			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int[])"+exp), CalcOffset(count), out rawBytes)) {
 				v = null;
 				return false;
 			}
 
-			int sz = IntPtr.Size;
-
 			v = new IntPtr[count];
 			for (int i = 0; i < count; i++) {
-				if (sz == 4)
-					v [i] = new IntPtr (BitConverter.ToInt32 (rawBytes, i * sz));
+				if (Session.Is64Bit)
+					v [i] = new IntPtr (BitConverter.ToInt64 (rawBytes, i * 8));
 				else
-					v [i] = new IntPtr (BitConverter.ToInt64 (rawBytes, i * sz));
+					v [i] = new IntPtr (BitConverter.ToInt32 (rawBytes, i * 4));
 			}
 			return true;
 		}
@@ -174,15 +177,15 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public bool Read (string exp, out IntPtr v)
 		{
 			byte[] rawBytes;
-			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int)"+exp), IntPtr.Size, out rawBytes)) {
+			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int)"+exp), Session.PointerSize, out rawBytes)) {
 				v = new IntPtr();
 				return false;
 			}
 
-			if (IntPtr.Size == 4)
-				v = new IntPtr (BitConverter.ToInt32 (rawBytes,0));
-			else
+			if (Session.Is64Bit)
 				v = new IntPtr (BitConverter.ToInt64 (rawBytes,0));
+			else
+				v = new IntPtr (BitConverter.ToInt32 (rawBytes,0));
 
 			return true;
 		}

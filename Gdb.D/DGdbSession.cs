@@ -33,8 +33,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 	class DGdbSession : GdbSession
 	{
 		#region Properties
-		public MemoryExamination Memory;
-		public ToStringExamination ObjectToStringExam;
+		public readonly MemoryExamination Memory;
+		public readonly ToStringExamination ObjectToStringExam;
+		public readonly Deh2 ExceptionHandling;
+		public int PointerSize { get; private set; }
+		public bool Is64Bit { get; private set; }
 		#endregion
 
 		#region Constructor/Init
@@ -42,8 +45,30 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			Memory = new MemoryExamination (this);
 			ObjectToStringExam = new ToStringExamination (this);
+			ExceptionHandling = new Deh2 (this);
 		}
 		#endregion
+
+		protected override void OnStarted (ThreadInfo t)
+		{
+			ExceptionHandling.InjectBreakpoint ();
+
+			base.OnStarted (t);
+		}
+
+		protected override void OnRun (DebuggerStartInfo startInfo)
+		{
+			base.OnRun (startInfo);
+
+			// Determine client architecture -- Might be important on Windows when the x86 compatibility layer is active
+			var res = RunCommand ("-data-evaluate-expression","sizeof(void*)");
+			if (res != null)
+				Is64Bit = res.GetValueString ("value") == "8"; // Are pointers 8 bytes long? Then it's 64 bit, obviously.
+			else
+				Is64Bit = Environment.Is64BitOperatingSystem;
+
+			PointerSize = Is64Bit ? 8 : 4;
+		}
 
 		protected override void ProcessOutput (string line)
 		{

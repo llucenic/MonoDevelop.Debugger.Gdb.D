@@ -163,23 +163,24 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var members = new List<Tuple<MemberSymbol,int>> ();
 
 			if (tit is ClassType)
-				size = DGdbTools.CalcOffset (2);
+				size = Memory.CalcOffset (2);
 			else if (tit is StructType || tit is UnionType)
 				size = 0;
 			else
 				throw new ArgumentException ("Can only estimate size of classes, structs and unions");
 
-			var memberLength = IntPtr.Size;
+			var sz = Backtrace.DSession.PointerSize;
+			var memberLength = sz;
 
 			foreach (var ds in MemberLookup.ListMembers(tit, resolutionCtx)) {
 
 				// If there's a base interface, the interface's vtbl pointer is stored at this position -- and shall be skipped!
 				if(ds is InterfaceType){
 					// See below
-					if (memberLength < IntPtr.Size)
-						size += size % IntPtr.Size;
+					if (memberLength < sz)
+						size += size % sz;
 
-					size += IntPtr.Size;
+					size += sz;
 					continue;
 				}
 
@@ -193,8 +194,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 				/*
 				 * Very important on x64: if a long, array or pointer follows e.g. an int value, it'll be aligned to an 8 byte-base again.
 				 */
-				if (memberLength < IntPtr.Size && newSize % IntPtr.Size == 0)
-					size += size % IntPtr.Size;
+				if (memberLength < sz && newSize % sz == 0)
+					size += size % sz;
 				memberLength = newSize;
 
 				members.Add (new Tuple<MemberSymbol, int>(ms, size));
@@ -246,10 +247,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 					         memberType is InterfaceType ||
 					         memberType is ClassType) {
 						long ptr;
-						if (IntPtr.Size == 4)
-							ptr = BitConverter.ToInt32 (bytes, currentOffset);
-						else
+						if (Backtrace.DSession.Is64Bit)
 							ptr = BitConverter.ToInt64 (bytes, currentOffset);
+						else
+							ptr = BitConverter.ToInt32 (bytes, currentOffset);
 
 						if (ptr < 1)
 							objectMembers.Add (ObjectValue.CreateNullObject (ValueSource, memberPath, memberType.ToCode(), memberFlags));
@@ -403,14 +404,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return EvaluateArray (header.Length.ToInt64 (), header.FirstItem.ToInt64 (), t, flags, path);
 		}
 
-		static void ExamArrayInfo(byte[] rawBytes, int start, out long arrayLength, out long firstItem)
+		void ExamArrayInfo(byte[] rawBytes, int start, out long arrayLength, out long firstItem)
 		{
-			if (IntPtr.Size == 4) {
-				arrayLength = BitConverter.ToInt32 (rawBytes, start);
-				firstItem = BitConverter.ToInt32 (rawBytes, start + 4);
-			} else {
+			if (Backtrace.DSession.Is64Bit) {
 				arrayLength = BitConverter.ToInt64 (rawBytes, start);
 				firstItem = BitConverter.ToInt64 (rawBytes, start + 8);
+			} else {
+				arrayLength = BitConverter.ToInt32 (rawBytes, start);
+				firstItem = BitConverter.ToInt32 (rawBytes, start + 4);
 			}
 		}
 
@@ -488,7 +489,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue EvaluateInterfaceInstance(string exp, ObjectValueFlags flags, ObjectPath path, ref AbstractType actualClassType)
 		{
-			exp = (MemoryExamination.enforceRawExpr (ref exp) ? MemoryExamination.EnforceReadRawExpression : ' ')+ "**(int*)(" + exp + ")+"+DGdbTools.CalcOffset(3);
+			exp = (MemoryExamination.enforceRawExpr (ref exp) ? MemoryExamination.EnforceReadRawExpression : ' ')+ "**(int*)(" + exp + ")+"+Memory.CalcOffset(3);
 
 			return EvaluateClassInstance(exp, flags, path, ref actualClassType);
 			/*
@@ -506,7 +507,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return DGdbTools.SizeOf ((t as PrimitiveType).TypeToken);
 
 			if (t is ArrayType)
-				return IntPtr.Size * 2;
+				return Memory.CalcOffset(2);
 
 			if (t is StructType || t is UnionType) {
 				int size;
@@ -516,7 +517,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return size;
 			}
 
-			return IntPtr.Size;
+			return Backtrace.DSession.PointerSize;
 		}
 
 		public static ObjectValueFlags BuildObjectValueFlags (DSymbol ds)
