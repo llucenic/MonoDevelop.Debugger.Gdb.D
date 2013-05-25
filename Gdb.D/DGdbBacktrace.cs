@@ -95,43 +95,16 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#region Variables
 		public override ObjectValue[] GetLocalVariables(int frameIndex, EvaluationOptions options)
 		{
-			var res = session.RunCommand("-stack-list-locals", "0");
-			return GetVariables(frameIndex, options, res.GetObject("locals"));
+			Variables.UpdateTypeResolutionContext();
+
+			return base.GetLocalVariables (frameIndex, options);
 		}
 
 		public override ObjectValue[] GetParameters(int frameIndex, EvaluationOptions options)
 		{
-			var res = session.RunCommand("-stack-list-arguments", "0", frameIndex.ToString(), frameIndex.ToString());
-			return GetVariables(frameIndex, options, res.GetObject("stack-args").GetObject(0).GetObject("frame").GetObject("args"));
-		}
+			Variables.UpdateTypeResolutionContext();
 
-		public ObjectValue[] GetVariables(int frameIndex, EvaluationOptions options, ResultData variables)
-		{
-			SelectFrame(frameIndex);
-			var values = new List<ObjectValue>();
-
-			if (variables.Count > 0) {
-				Variables.UpdateTypeResolutionContext();
-
-				foreach (ResultData data in variables) {
-					var variableName = data.GetValueString("name");
-					try{
-					
-					var val = CreateVarObject(variableName);
-					if (val != null) {
-						// we get rid of unresolved or erroneous variables
-						values.Add(val);
-					}
-					else {
-						DSession.LogWriter(false,"Gdb.D: Couldn't resolve variable " + variableName+"\n\tRaw data: "+variables.ToString());
-					}
-					}catch(Exception ex) {
-						continue;
-					}
-				}
-			}
-
-			return values.ToArray();
+			return base.GetParameters (frameIndex, options);
 		}
 
 		protected override ObjectValue CreateVarObject(string exp)
@@ -145,9 +118,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 		/// </summary>
 		public override object GetRawValue (ObjectPath path, EvaluationOptions options)
 		{
+			return null;
 			// GdbCommandResult res = DSession.RunCommand("-var-evaluate-expression", path.ToString());
 				
-			return new RawValueString(new DGdbRawValueString("N/A"));
+			//return new RawValueString(new DGdbRawValueString("N/A"));
 		}
 		#endregion
 	}
