@@ -260,7 +260,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					else if(memberType is StructType)
 						objectMembers.Add(ObjectValue.CreateObject(ValueSource, memberPath, memberType.ToCode(), memberType.ToString(), memberFlags, null));
 				} catch (Exception ex) {
-
+					Backtrace.DSession.LogWriter (false, "Error in GetClassInstanceChildren(memberPath="+memberPath.ToString()+"): " + ex.Message+"\n");
 				}
 
 				// TODO: use alignof property instead of constant
@@ -376,14 +376,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else if(t is StructType)
 				return ObjectValue.CreateObject(ValueSource, path, t.ToCode(), t.ToCode(), flags, null);
 
-			return null;
+			return ObjectValue.CreateUnknown(ValueSource, path, t == null ? "<Unknown type>" : t.ToCode());
 		}
 
 		ObjectValue EvaluatePrimitive (string exp, PrimitiveType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			byte[] rawBytes;
 			if (!Memory.Read ("(void[])" + exp, DGdbTools.SizeOf (t.TypeToken), out rawBytes))
-				return ObjectValue.CreateError (ValueSource, path, t.ToCode (), null, flags);
+				return ObjectValue.CreateError (ValueSource, path, t.ToCode (), "Can't read primitive '"+exp+"'", flags);
 
 			return EvaluatePrimitive (rawBytes, 0, t, flags, path);
 		}
