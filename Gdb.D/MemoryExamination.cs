@@ -177,7 +177,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public bool Read (string exp, out IntPtr v)
 		{
 			byte[] rawBytes;
-			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int)"+exp), Session.PointerSize, out rawBytes)) {
+			if (!Read (enforceRawExpr(ref exp) ? exp : ("&("+exp+")"), Session.PointerSize, out rawBytes)) {
 				v = new IntPtr();
 				return false;
 			}
@@ -234,13 +234,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 				res = Session.RunCommand ("-data-read-memory-bytes", exp, length.ToString());
 			}
 			catch(Exception ex) {
+				Session.LogWriter (true, "gdb exception - couldn't read '" + exp + "': " + ex.Message +"\n");
 				data = new byte[0];
 				return false;
 			}
 
 			if (res.Status == CommandStatus.Error) {
 				data = new byte[0];
-				Session.LogWriter (true, "gdb exception - couldn't read '" + exp + ": " + res.ErrorMessage+"\n");
+				Session.LogWriter (true, "gdb exception - couldn't read '" + exp + "': " + res.ErrorMessage+"\n");
 				return false;
 			}
 
