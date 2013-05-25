@@ -398,9 +398,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		ObjectValue EvaluateArray (string exp, ArrayType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			var header = Memory.ReadDArrayHeader (exp);
-			if (header.FirstItem.ToInt64 () < 1)
-				return ObjectValue.CreateError (ValueSource, path, t.ToCode (), null, flags);
-
 			return EvaluateArray (header.Length.ToInt64 (), header.FirstItem.ToInt64 (), t, flags, path);
 		}
 
