@@ -1,7 +1,7 @@
 <Addin id = "MonoDevelop.D.Debugging.Gdb"
        name	     = "D Language Debugging Support under GNU/Linux (GDB)"
-       author	 = "Ludovit Lucenic"
-       url       = "https://github.com/llucenic"
+       author	 = "Ludovit Lucenic, AlexanderBothe"
+       url       = "https://github.com/llucenic/MonoDevelop.Debugger.Gdb.D"
        description = "D Language debugging support based on GNU Debugger support for GNU/Linux platform."
        copyright   = "MIT X11"
        category = "Debugging"
@@ -15,15 +15,9 @@
 	</Dependencies>
 	
 	<Extension path="/MonoDevelop/Debugging/DebuggerEngines">
-		<!--DebuggerEngine id="Mono.Debugger.Gdb" 
-			name="GNU Debugger (GDB)" 
-			features="ConditionalBreakpoints, Tracepoints, Catchpoints, Attaching, DebugFile, Stepping, Pause, Breakpoints, Disassembly"
-			type="MonoDevelop.Debugger.Gdb.GdbSessionFactory" /-->
-
 		<DebuggerEngine id="Mono.Debugger.Gdb.D" 
 			name="GNU Debugger (GDB) with support for D Language" 
 			features="ConditionalBreakpoints, Tracepoints, Catchpoints, Attaching, DebugFile, Stepping, Pause, Breakpoints, Disassembly"
 			type="MonoDevelop.Debugger.Gdb.D.DGdbSessionFactory" />
 	</Extension>
-
 </Addin>
