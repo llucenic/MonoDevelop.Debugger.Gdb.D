@@ -40,7 +40,7 @@ namespace MonoDevelop.Debugger.Gdb
 		protected StackFrame firstFrame;
 		protected GdbSession session;
 		DissassemblyBuffer[] disBuffers;
-		int currentFrame = -1;
+		protected int currentFrame = -1;
 		protected long threadId;
 		
 		public GdbBacktrace (GdbSession session, long threadId, int count, ResultData firstFrame)
@@ -58,9 +58,9 @@ namespace MonoDevelop.Debugger.Gdb
 			}
 		}
 		
-		public StackFrame[] GetStackFrames (int firstIndex, int lastIndex)
+		public virtual StackFrame[] GetStackFrames (int firstIndex, int lastIndex)
 		{
-			List<StackFrame> frames = new List<StackFrame> ();
+			var frames = new List<StackFrame> ();
 			if (firstIndex == 0 && firstFrame != null) {
 				frames.Add (firstFrame);
 				firstIndex++;

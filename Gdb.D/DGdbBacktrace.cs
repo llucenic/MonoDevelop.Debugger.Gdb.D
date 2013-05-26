@@ -42,15 +42,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 	class DGdbBacktrace : GdbBacktrace
 	{
 		#region Properties
+		List<string>[] VariableNameCache;
+		List<string>[] ParameterNameCache;
+		public int CurrentFrameIndex;
 		public readonly VariableValueExamination Variables;
 
 		public DGdbSession DSession {
 			get { return session as DGdbSession; }
-		}
-
-		public StackFrame FirstFrame
-		{
-			get{ return firstFrame; }
 		}
 		#endregion
 
@@ -59,11 +57,26 @@ namespace MonoDevelop.Debugger.Gdb.D
 			: base(session, threadId, count, firstFrame)
 		{
 			Variables = new VariableValueExamination (this);
+			DebuggingService.CurrentFrameChanged += FrameChanged;
 		}
 
 		#endregion
 
 		#region Stack frames
+		public override StackFrame[] GetStackFrames (int firstIndex, int lastIndex)
+		{
+			var frames =  base.GetStackFrames (firstIndex, lastIndex);
+			VariableNameCache = new List<string>[frames.Length];
+			ParameterNameCache = new List<string>[frames.Length];
+			return frames;
+		}
+
+		void FrameChanged(Object o, EventArgs ea)
+		{
+			Variables.NeedsResolutionContextUpdate = true;
+			CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
+		}
+
 		protected override StackFrame CreateFrame(ResultData frameData)
 		{
 			string lang = "D";
@@ -93,23 +106,61 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region Variables
-		public override ObjectValue[] GetLocalVariables(int frameIndex, EvaluationOptions options)
+		bool isCallingCreateVarObjectImplicitly = false;
+		public override ObjectValue[] GetParameters (int frameIndex, EvaluationOptions options)
 		{
-			Variables.UpdateTypeResolutionContext();
+			isCallingCreateVarObjectImplicitly = true;
+			if(CurrentFrameIndex != frameIndex)
+				Variables.NeedsResolutionContextUpdate = true;
+			CurrentFrameIndex = frameIndex;
 
-			return base.GetLocalVariables (frameIndex, options);
+			var r = base.GetParameters (frameIndex, options);
+
+			if(ParameterNameCache[frameIndex] == null)
+			{
+				var nameCache = new List<string>();
+				foreach(var p in r)
+					nameCache.Add(p.Name);
+				ParameterNameCache[frameIndex] = nameCache;
+			}
+
+			isCallingCreateVarObjectImplicitly = false;
+			return r;
 		}
 
-		public override ObjectValue[] GetParameters(int frameIndex, EvaluationOptions options)
+		public override ObjectValue[] GetLocalVariables (int frameIndex, EvaluationOptions options)
 		{
-			Variables.UpdateTypeResolutionContext();
+			isCallingCreateVarObjectImplicitly = true;
+			var r = base.GetLocalVariables (frameIndex, options);
 
-			return base.GetParameters (frameIndex, options);
+			if(VariableNameCache[frameIndex] == null)
+			{
+				var nameCache = new List<string>();
+				foreach(var p in r)
+					nameCache.Add(p.Name);
+				VariableNameCache[frameIndex] = nameCache;
+			}
+
+			isCallingCreateVarObjectImplicitly = false;
+			return r;
 		}
 
 		protected override ObjectValue CreateVarObject(string exp)
 		{
 			session.SelectThread(threadId);
+
+			if (!isCallingCreateVarObjectImplicitly) {
+				if (DebuggingService.CurrentFrameIndex != CurrentFrameIndex) {
+					CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
+					Variables.NeedsResolutionContextUpdate = true;
+				}
+
+				if (!ParameterNameCache [CurrentFrameIndex].Contains (exp) &&
+				    (VariableNameCache[CurrentFrameIndex] == null ||
+					!VariableNameCache [CurrentFrameIndex].Contains (exp)))
+					return ObjectValue.CreateUnknown(exp);
+			}
+
 			return Variables.EvaluateVariable (exp);
 		}
 

@@ -49,6 +49,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		readonly MemoryExamination Memory;
 		D_Parser.Completion.EditorData firstFrameEditorData;
 		ResolutionContext resolutionCtx;
+		public bool NeedsResolutionContextUpdate;
 
 		CodeLocation codeLocation { get { return firstFrameEditorData != null ? firstFrameEditorData.CaretLocation : CodeLocation.Empty; } }
 
@@ -295,7 +296,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public bool UpdateTypeResolutionContext ()
 		{
-			var ff = Backtrace.FirstFrame;
+			if (!NeedsResolutionContextUpdate && resolutionCtx != null)
+				return true;
+			NeedsResolutionContextUpdate = false;
+
+			var ff = DebuggingService.CurrentCallStack.GetFrame(Backtrace.CurrentFrameIndex);
 			var document = Ide.IdeApp.Workbench.OpenDocument (ff.SourceLocation.FileName);
 			if (document == null)
 				return false;
@@ -321,6 +326,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#region Pre-evaluation (lazy/child-less variable examination)
 		public ObjectValue EvaluateVariable (string variableName)
 		{
+			UpdateTypeResolutionContext ();
+
 			if (variableName == "this") {
 
 			}
