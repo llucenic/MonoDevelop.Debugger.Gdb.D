@@ -114,7 +114,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// It's stored in obj.classinfo.init.length
 			// See http://dlang.org/phobos/object.html#.TypeInfo_Class
 			IntPtr objectSize;
-			if (!Read ("**(int*)(" + exp + ")+" + CalcOffset(2), out objectSize)) {
+			if (!Read (EnforceReadRawExpression+"**(int*)(" + exp + ")+" + CalcOffset(2), out objectSize)) {
 				Session.LogWriter (false, "Object (exp=\""+exp+"\") length couldn't be read. Return.\n");
 				return new byte[0];
 			}
