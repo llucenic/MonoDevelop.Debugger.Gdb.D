@@ -223,8 +223,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			byte[] bytes;
 
 			if (isStruct) {
-				var exp = cacheNode.addressExpression;
-				Memory.Read (MemoryExamination.enforceRawExpr(ref exp) ? exp : ("&(" + cacheNode.addressExpression + ")"), objectSize, out bytes);
+				Memory.Read (MemoryExamination.BuildAddressExpression(cacheNode.addressExpression, "&({0})"), objectSize, out bytes);
 			}
 			else
 				bytes = Memory.ReadObjectBytes (cacheNode.addressExpression);
@@ -265,7 +264,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 				}
 
 				// TODO: use alignof property instead of constant
-				cacheNode.Set (new ObjectCacheNode (member.Name, memberType, MemoryExamination.EnforceReadRawExpression+"((void*)"+cacheNode.addressExpression + "+" + currentOffset+")"));
+
+				// Create access expression for field inside the object.
+				string addressExpression;
+				if(isStruct)
+				{
+					addressExpression = MemoryExamination.EnforceReadRawExpression+"((void*)"+MemoryExamination.BuildAddressExpression(cacheNode.addressExpression, "&({0})")+ "+"+currentOffset+")";
+				}
+				else
+					addressExpression = MemoryExamination.EnforceReadRawExpression+"((void*)"+MemoryExamination.BuildAddressExpression(cacheNode.addressExpression) + "+" + currentOffset+")";
+
+				cacheNode.Set (new ObjectCacheNode (member.Name, memberType, addressExpression));
 			}
 
 			return objectMembers.ToArray ();
@@ -328,9 +337,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			UpdateTypeResolutionContext ();
 
-			if (variableName == "this") {
-
-			}
+			AbstractType baseType = null;
+			ObjectValueFlags flags = ObjectValueFlags.None;
 
 			// Read the symbol type out of gdb into some abstract format (AbstractType?)
 			// -> primitives
@@ -339,27 +347,35 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// -> structs/classes
 			// -> interfaces -> 
 
-			MemberSymbol ms = null;
-
-			foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, null)) {
-				ms = DResolver.StripAliasSymbol (t) as MemberSymbol;
-				if (ms != null)
-					break;
+			if (variableName == "this") {
+				baseType = D_Parser.Resolver.ExpressionSemantics.Evaluation.EvaluateType (new D_Parser.Dom.Expressions.TokenExpression (DTokens.This), resolutionCtx);
+				flags = BuildObjectValueFlags(baseType as DSymbol);
+			} 
+			else 
+			{
+				foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, null)) {
+					var ms = DResolver.StripAliasSymbol (t) as MemberSymbol;
+					if (ms != null)
+					{
+						// we by-pass variables not declared so far, thus skipping not initialized variables
+						if (ms.Definition.EndLocation > this.codeLocation)
+							return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base.ToString (), BuildObjectValueFlags (ms));
+						
+						baseType = ms.Base;
+						flags = BuildObjectValueFlags (ms);
+						break;
+					}
+				}
 			}
 
 			// If variable cannot be resolved, try to let gdb evaluate it
-			if (ms == null || ms.Definition == null) {
+			if (baseType == null) {
 				var res = Backtrace.DSession.RunCommand ("-data-evaluate-expression", variableName);
-
+				
 				return ObjectValue.CreatePrimitive (ValueSource, new ObjectPath (variableName), "<unknown>", new EvaluationResult (res.GetValueString ("value")), ObjectValueFlags.Variable);
 			}
 
-			// we by-pass variables not declared so far, thus skipping not initialized variables
-			if (ms.Definition.EndLocation > this.codeLocation)
-				return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base.ToString (), BuildObjectValueFlags (ms));
-
-			var baseType = ms.Base;
-			var v = EvaluateVariable (variableName, ref baseType, BuildObjectValueFlags (ms), new ObjectPath (variableName));
+			var v = EvaluateVariable (variableName, ref baseType, flags, new ObjectPath (variableName));
 			cacheRoot.Set(new ObjectCacheNode(variableName, baseType, variableName));
 			return v;
 		}
@@ -456,6 +472,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		ObjectValue EvaluatePointer(string exp, PointerType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			var ptBase = t.Base;
+			MemoryExamination.enforceRawExpr (ref exp);
 			return EvaluateVariable("*(int**)"+exp, ref ptBase, flags, path);
 		}
 
@@ -463,8 +480,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			// Check if null
 			IntPtr ptr;
-			MemoryExamination.enforceRawExpr (ref exp);
-			if (!Memory.Read (exp, out ptr) || 
+			if (!Memory.Read (exp[0] == MemoryExamination.EnforceReadRawExpression ? exp : (MemoryExamination.EnforceReadRawExpression + exp), out ptr) || 
 			    ptr.ToInt64 () < 1)
 				return ObjectValue.CreateNullObject (ValueSource, path, actualClassType == null ? "<Unkown type>" : actualClassType.ToCode (), flags);
 
@@ -493,7 +509,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue EvaluateInterfaceInstance(string exp, ObjectValueFlags flags, ObjectPath path, ref AbstractType actualClassType)
 		{
-			exp = (MemoryExamination.enforceRawExpr (ref exp) ? MemoryExamination.EnforceReadRawExpression : ' ')+ "**(int*)(" + exp + ")+"+Memory.CalcOffset(3);
+			exp = (MemoryExamination.enforceRawExpr (ref exp) ? MemoryExamination.EnforceReadRawExpression.ToString() : "")+ "**(int*)(" + exp + ")+"+Memory.CalcOffset(3);
 
 			return EvaluateClassInstance(exp, flags, path, ref actualClassType);
 			/*

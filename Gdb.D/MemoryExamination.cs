@@ -105,7 +105,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public string ReadDynamicObjectTypeString(string exp)
 		{
-			return ReadString("***(int*)(" + exp + ")+" + CalcOffset(1));
+			return ReadString("***(int*)(" + BuildAddressExpression(exp) + ")+" + CalcOffset(1));
 		}
 
 		public byte[] ReadObjectBytes (string exp)
@@ -114,7 +114,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// It's stored in obj.classinfo.init.length
 			// See http://dlang.org/phobos/object.html#.TypeInfo_Class
 			IntPtr objectSize;
-			if (!Read (EnforceReadRawExpression+"**(int*)(" + exp + ")+" + CalcOffset(2), out objectSize)) {
+			if (!Read (EnforceReadRawExpression+"**(int*)(" + BuildAddressExpression(exp) + ")+" + CalcOffset(2), out objectSize)) {
 				Session.LogWriter (false, "Object (exp=\""+exp+"\") length couldn't be read. Return.\n");
 				return new byte[0];
 			}
@@ -147,6 +147,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region Generic
+		public static string BuildAddressExpression(string rawExpression, string nonRawFormat = "{0}")
+		{
+			if (rawExpression [0] == EnforceReadRawExpression)
+				return rawExpression.Substring (1);
+			return string.Format (nonRawFormat, rawExpression);
+		}
+
 		public static bool enforceRawExpr(ref string exp)
 		{
 			if (/*!string.IsNullOrEmpty (exp) &&*/ exp [0] == EnforceReadRawExpression) {
@@ -159,7 +166,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public bool Read (string exp, int count, out IntPtr[] v)
 		{
 			byte[] rawBytes;
-			if (!Read (enforceRawExpr(ref exp) ? exp : ("(int[])"+exp), CalcOffset(count), out rawBytes)) {
+			if (!Read (BuildAddressExpression(exp,"(int[]){0}"), CalcOffset(count), out rawBytes)) {
 				v = null;
 				return false;
 			}
@@ -177,7 +184,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public bool Read (string exp, out IntPtr v)
 		{
 			byte[] rawBytes;
-			if (!Read (enforceRawExpr(ref exp) ? exp : ("&("+exp+")"), Session.PointerSize, out rawBytes)) {
+			if (!Read (BuildAddressExpression(exp,"&({0})"), Session.PointerSize, out rawBytes)) {
 				v = new IntPtr();
 				return false;
 			}
@@ -231,6 +238,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			GdbCommandResult res;
 			try{
+				exp = BuildAddressExpression(exp);
 				res = Session.RunCommand ("-data-read-memory-bytes", exp, length.ToString());
 			}
 			catch(Exception ex) {
@@ -251,7 +259,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		GdbCommandResult WriteMemory(string addressExpression, string data)
 		{
-			return Session.RunCommand ("-data-write-memory-bytes", addressExpression, data);
+			return Session.RunCommand ("-data-write-memory-bytes",BuildAddressExpression(addressExpression), data);
 		}
 		#endregion
 	}

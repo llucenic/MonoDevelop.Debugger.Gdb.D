@@ -218,7 +218,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// execute the injected toString() through the invoke method
 			GdbCommandResult res;
 			try{
-				res = Session.RunCommand (string.Format (InvokeCommand, "(int*)"+exp));
+				res = Session.RunCommand (string.Format (InvokeCommand, MemoryExamination.enforceRawExpr(ref exp) ? exp : ("(int*)"+exp)));
 			}catch(Exception ex) {
 				Session.LogWriter (true, "Exception while running injected toString method for '" + exp + "': " + ex.Message);
 				return null;
