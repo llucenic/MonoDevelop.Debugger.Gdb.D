@@ -128,21 +128,22 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			return lBytes;
 		}
-
+		/*
 		public byte[] ReadInstanceBytes (string exp, out TemplateIntermediateType ctype, out IntPtr offset, ResolutionContext resolutionCtx)
 		{
+			exp = "**(int*)(" + BuildAddressExpression (exp) + ")+"+CalcOffset(1);
+
 			// first we need to get the right offset of the impmlemented interface address within object instance
 			// this is located in object.Interface instance referenced by twice dereferencing the exp
-			if (!Read ("\"**(int*)(" + exp + ")+12\"", out offset)) {  // Where comes the 12 from??
+			if (!Read ( exp, out offset)) {  // Where comes the 12 from??
 				ctype = null;
 				return new byte[0];
 			}
 
-			ctype = null;
-			return null;
+			return ReadObjectBytes (exp);
 			//TODO: fix the following dereference !
 			//return ReadObjectBytes (String.Format ("(int*){0}-{1}", exp, offset), out ctype, resolutionCtx);
-		}
+		}*/
 
 		#endregion
 

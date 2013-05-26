@@ -509,9 +509,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue EvaluateInterfaceInstance(string exp, ObjectValueFlags flags, ObjectPath path, ref AbstractType actualClassType)
 		{
-			exp = (MemoryExamination.enforceRawExpr (ref exp) ? MemoryExamination.EnforceReadRawExpression.ToString() : "")+ "**(int*)(" + exp + ")+"+Memory.CalcOffset(3);
+			exp ="**(int*)(" + MemoryExamination.BuildAddressExpression(exp) + ")+"+Memory.CalcOffset(1);
 
-			return EvaluateClassInstance(exp, flags, path, ref actualClassType);
+			return ObjectValue.CreateError (ValueSource, path, actualClassType.ToCode (), "", flags);
+			//return EvaluateClassInstance(exp, flags, path, ref actualClassType);
 			/*
 				IntPtr lOffset;
 				byte[] bytes = Memory.ReadInstanceBytes(exp, out ctype, out lOffset, resolutionCtx);*/
