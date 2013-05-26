@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cd build
+mdtool setup pack MonoDevelop.Debugger.Gdb.D.dll
