@@ -3,7 +3,7 @@
 [Oo]bj/
 
 *.userprefs
-Mono-D/*
+./Mono-D
 
 # mstest test results
 TestResults
