@@ -44,6 +44,7 @@ namespace MonoDevelop.Debugger.Gdb
 		Process proc;
 		StreamReader sout;
 		StreamWriter sin;
+		IProcessAsyncOperation console;
 		protected GdbCommandResult lastResult;
 		protected bool running;
 		Thread thread;
@@ -76,8 +77,54 @@ namespace MonoDevelop.Debugger.Gdb
 		protected override void OnRun (DebuggerStartInfo startInfo)
 		{
 			lock (gdbLock) {
-				
+				string tty = null;
+
+				if (Environment.OSVersion.Platform == PlatformID.Unix)
+				{
+					// Create a script to be run in a terminal
+					string script = Path.GetTempFileName();
+					string ttyfile = Path.GetTempFileName();
+					string ttyfileDone = ttyfile + "_done";
+
+					try
+					{
+						File.WriteAllText(script, "tty > " + ttyfile + "\ntouch " + ttyfileDone + "\nsleep 10000d");
+						Mono.Unix.Native.Syscall.chmod(script, Mono.Unix.Native.FilePermissions.ALLPERMS);
+
+						console = Runtime.ProcessService.StartConsoleProcess(script, "", ".", ExternalConsoleFactory.Instance.CreateConsole(true), null);
+						DateTime tim = DateTime.Now;
+						while (!File.Exists(ttyfileDone))
+						{
+							System.Threading.Thread.Sleep(100);
+							if ((DateTime.Now - tim).TotalSeconds > 10)
+								throw new InvalidOperationException("Console could not be created.");
+						}
+						tty = File.ReadAllText(ttyfile).Trim(' ', '\n');
+					}
+					finally
+					{
+						try
+						{
+							if (File.Exists(script))
+								File.Delete(script);
+							if (File.Exists(ttyfile))
+								File.Delete(ttyfile);
+							if (File.Exists(ttyfileDone))
+								File.Delete(ttyfileDone);
+						}
+						catch
+						{
+							// Ignore
+						}
+					}
+				}
+
 				StartGdb ();
+
+				// Initialize the terminal
+				if (tty != null) {
+					RunCommand ("-inferior-tty-set", Escape (tty));
+				}
 
 				try {
 					RunCommand ("-file-exec-and-symbols", Escape (startInfo.Command));
@@ -152,6 +199,9 @@ namespace MonoDevelop.Debugger.Gdb
 		
 		public override void Dispose ()
 		{
+			if (console != null && !console.IsCompleted)
+				console.Dispose ();
+
 			if (thread != null)
 				thread.Abort ();
 		}
