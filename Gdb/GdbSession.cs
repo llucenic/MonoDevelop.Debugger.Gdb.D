@@ -228,6 +228,7 @@ namespace MonoDevelop.Debugger.Gdb
 			lock (gdbLock) {
 				InternalStop ();
 				RunCommand ("detach");
+				KillGdb ();
 				FireTargetEvent (TargetEventType.TargetExited, null);
 			}
 		}
@@ -608,8 +609,7 @@ namespace MonoDevelop.Debugger.Gdb
 				if (!running)
 					return false;
 				internalStop = true;
-				sin.WriteLine ("^C");
-				//Syscall.kill (proc.Id, Signum.SIGINT);
+				KillGdb ();
 				if (!Monitor.Wait (eventLock, 4000))
 					throw new InvalidOperationException ("Target could not be interrupted.");
 			}
@@ -717,6 +717,10 @@ namespace MonoDevelop.Debugger.Gdb
 			
 			ResultData curFrame = ev.GetObject ("frame");
 			FireTargetEvent (type, curFrame);
+
+			// Immediately shoot down gdb after has debuggee exited
+			if (type == TargetEventType.TargetExited)
+				KillGdb ();
 		}
 		
 		protected virtual void FireTargetEvent (TargetEventType type, ResultData curFrame)
