@@ -92,7 +92,6 @@
     <Compile Include="Gdb\ResultData.cs" />
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Gdb.D\DGdbBacktrace.cs" />
-    <Compile Include="Gdb.D\DGdbCommandResult.cs" />
     <Compile Include="Gdb.D\DGdbSession.cs" />
     <Compile Include="Gdb.D\DGdbSessionFactory.cs" />
     <Compile Include="Gdb.D\DGdbTools.cs" />
