@@ -57,10 +57,6 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
-    <Reference Include="ICSharpCode.NRefactory">
-      <HintPath>Mono-D\ext\ICSharpCode.NRefactory.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="MonoDevelop.Core">
       <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
       <Private>False</Private>
@@ -80,6 +76,18 @@
       <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger.Soft\MonoDevelop.Debugger.Soft.dll</HintPath>
       <Private>False</Private>
       <Package>monodevelop-core-addins</Package>
+    </Reference>
+    <Reference Include="D_Parser">
+      <HintPath>ext\D_Parser.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MonoDevelop.D">
+      <HintPath>ext\MonoDevelop.D.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory">
+      <HintPath>ext\ICSharpCode.NRefactory.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -119,18 +127,6 @@
       </Properties>
     </MonoDevelop>
   </ProjectExtensions>
-  <ItemGroup>
-    <ProjectReference Include="Mono-D\Parser\DParser2\DParser2.csproj">
-      <Project>{0290A229-9AA1-41C3-B525-CAFB86D8BC42}</Project>
-      <Name>DParser2</Name>
-      <Private>False</Private>
-    </ProjectReference>
-    <ProjectReference Include="Mono-D\MonoDevelop.DBinding\MonoDevelop.D.csproj">
-      <Project>{5867254F-6B1C-4A4C-BF98-C283740A0470}</Project>
-      <Name>MonoDevelop.D</Name>
-      <Private>False</Private>
-    </ProjectReference>
-  </ItemGroup>
   <ItemGroup>
     <Folder Include="Gdb\" />
     <Folder Include="Gdb.D\" />
