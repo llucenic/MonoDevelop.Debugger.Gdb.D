@@ -629,7 +629,7 @@ namespace MonoDevelop.Debugger.Gdb
 				try {
 					ProcessOutput (line);
 				} catch (Exception ex) {
-					Console.WriteLine (ex);
+					LoggingService.LogError("Error while processing gdb output", ex);
 				}
 			}
 		}
@@ -674,7 +674,7 @@ namespace MonoDevelop.Debugger.Gdb
 						try {
 							HandleEvent (ev);
 						} catch (Exception ex) {
-							Console.WriteLine (ex);
+							LoggingService.LogError("Error while processing gdb output", ex);
 						}
 					});
 					break;
