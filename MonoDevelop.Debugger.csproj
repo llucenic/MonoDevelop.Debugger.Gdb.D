@@ -51,10 +51,12 @@
       <HintPath>..\tutorial.lib\monodevelop\main\build\bin\Mono.Debugging.dll</HintPath>
       <Private>False</Private>
       <Package>monodevelop</Package>
+      <SpecificVersion>False</SpecificVersion>
     </Reference>
     <Reference Include="Mono.Debugging.Soft, Version=0.0.0.0, Culture=neutral, PublicKeyToken=5e9ce85b0923c84f">
       <Package>monodevelop-core-addins</Package>
       <Private>False</Private>
+      <SpecificVersion>False</SpecificVersion>
     </Reference>
     <Reference Include="System" />
     <Reference Include="MonoDevelop.Core">
@@ -77,16 +79,16 @@
       <Private>False</Private>
       <Package>monodevelop-core-addins</Package>
     </Reference>
-    <Reference Include="D_Parser">
-      <HintPath>ext\D_Parser.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="MonoDevelop.D">
       <HintPath>ext\MonoDevelop.D.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
       <HintPath>ext\ICSharpCode.NRefactory.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="D_Parser">
+      <HintPath>ext\D_Parser.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
