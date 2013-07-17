@@ -19,9 +19,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>False</ConsolePause>
-    <Execution>
-      <Execution clr-version="Net_2_0" />
-    </Execution>
     <CustomCommands>
       <CustomCommands>
         <Command type="Execute" command="/opt/mono/lib/monodevelop/bin/MonoDevelop.exe" workingdir="" />
@@ -41,9 +38,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>False</ConsolePause>
-    <Execution>
-      <Execution clr-version="Net_2_0" />
-    </Execution>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Mono.Posix" />
