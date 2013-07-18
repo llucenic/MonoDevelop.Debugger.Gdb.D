@@ -10,6 +10,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 {
 	class MemberLookup : AbstractVisitor
 	{
+		TemplateIntermediateType visitee;
 		List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>> res = new List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>>();
 		List<MemberSymbol> tempMembers = new List<MemberSymbol>();
 
@@ -50,6 +51,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			while (ct != null)
 			{
+				lk.visitee = ct;
 				lk.scanChildren(ct.Definition, MemberFilter.Variables, false, isBase, false, false);
 
 				lk.res.Add(new KeyValuePair<TemplateIntermediateType, MemberSymbol[]>(ct, lk.tempMembers.ToArray()));
@@ -74,7 +76,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (dv != null && !dv.IsAlias && !dv.IsStatic)
 			{
 				//TODO: Mixins & template mixins - their mixed-in var definitions are handled _after_ the actual definition.
-				tempMembers.Add(TypeDeclarationResolver.HandleNodeMatch(dv, ctxt) as MemberSymbol);
+				tempMembers.Add(TypeDeclarationResolver.HandleNodeMatch(dv, ctxt, visitee) as MemberSymbol);
 			}
 			return false;
 		}

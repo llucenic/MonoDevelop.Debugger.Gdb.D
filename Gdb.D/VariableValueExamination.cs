@@ -33,6 +33,7 @@ using Mono.Debugging.Backend;
 using Mono.Debugging.Client;
 using MonoDevelop.D.Resolver;
 using System.IO;
+using D_Parser.Dom.Expressions;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
@@ -232,7 +233,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var member = kv.Item1;
 				var currentOffset = kv.Item2;
 
-				var memberType = DResolver.StripAliasSymbol (member.Base);
+				var memberType = member.Base;
+				while (memberType is TemplateParameterSymbol || memberType is AliasedType)
+					memberType = (memberType as DSymbol).Base;
+
 				var memberFlags = BuildObjectValueFlags (member) | ObjectValueFlags.Field;
 				var memberPath = classPath.Append (member.Name);
 
@@ -497,6 +501,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// Interpret & resolve the parsed string so it'll become accessible for abstract examination
 			DToken optToken;
 			var bt = DParser.ParseBasicType (typeName, out optToken);
+			StripTemplateTypes (ref bt);
 			actualClassType = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx) ?? actualClassType;
 
 			if (actualClassType == null) {
@@ -504,7 +509,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 				Backtrace.DSession.LogWriter (false,"Ctxt: "+resolutionCtx.ScopedBlock.ToString()+"\n");
 			}
 
-			return ObjectValue.CreateObject (ValueSource, path, typeName, representativeDisplayValue, flags, null);
+			return ObjectValue.CreateObject (ValueSource, path, bt.ToString(true), representativeDisplayValue, flags, null);
+		}
+
+		static void StripTemplateTypes(ref ITypeDeclaration td)
+		{
+			if (td is IdentifierDeclaration && td.InnerDeclaration is TemplateInstanceExpression &&
+				(td as IdentifierDeclaration).Id == (td.InnerDeclaration as TemplateInstanceExpression).TemplateId)
+					td = td.InnerDeclaration;
+			if (td.InnerDeclaration != null) {
+				var ttd = td.InnerDeclaration;
+				StripTemplateTypes (ref ttd);
+				td.InnerDeclaration = ttd;
+			}
 		}
 
 		ObjectValue EvaluateInterfaceInstance(string exp, ObjectValueFlags flags, ObjectPath path, ref AbstractType actualClassType)
@@ -522,7 +539,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#region Helpers
 		int SizeOf (AbstractType t)
 		{
-			t = DResolver.StripAliasSymbol (t);
+			while (t is TemplateParameterSymbol || t is AliasedType)
+				t = (t as DSymbol).Base;
 
 			if (t is PrimitiveType)
 				return DGdbTools.SizeOf ((t as PrimitiveType).TypeToken);
