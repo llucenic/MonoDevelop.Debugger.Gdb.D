@@ -34,7 +34,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 	{
 		bool injected;
 		public readonly DGdbSession Session;
-		const string hookMethod = "_D2rt4deh213__eh_finddataFPvZPS2rt4deh29FuncTable";//"_D2rt4deh29terminateFZv";
+		const string hookMethod = "_D2rt4deh213__eh_finddataFPvZPyS2rt4deh29FuncTable";//"_D2rt4deh213__eh_finddataFPvZPS2rt4deh29FuncTable";//"_D2rt4deh29terminateFZv";
 		const int _eh_finddataMethodLength = 128;
 		/// <summary>
 		/// Code pattern to search in the function definition.

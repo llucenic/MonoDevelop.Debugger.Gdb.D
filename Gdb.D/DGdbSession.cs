@@ -51,15 +51,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		protected override void OnStarted (ThreadInfo t)
 		{
-			ExceptionHandling.InjectBreakpoint ();
-
-			base.OnStarted (t);
-		}
-
-		protected override void OnRun (DebuggerStartInfo startInfo)
-		{
-			base.OnRun (startInfo);
-
 			// Determine client architecture -- Might be important on Windows when the x86 compatibility layer is active
 			var res = RunCommand ("-data-evaluate-expression","sizeof(void*)");
 			if (res != null)
@@ -68,6 +59,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 				Is64Bit = Environment.Is64BitOperatingSystem;
 
 			PointerSize = Is64Bit ? 8 : 4;
+
+			ExceptionHandling.InjectBreakpoint ();
+
+			base.OnStarted (t);
 		}
 
 		protected override Backtrace OnGetThreadBacktrace (long processId, long threadId)
