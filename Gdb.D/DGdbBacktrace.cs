@@ -149,13 +149,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			session.SelectThread(threadId);
 
-			if (!isCallingCreateVarObjectImplicitly) {
-				if (DebuggingService.CurrentFrameIndex != CurrentFrameIndex) {
-					CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
-					Variables.NeedsResolutionContextUpdate = true;
-				}
+			if (DebuggingService.CurrentFrameIndex != CurrentFrameIndex) {
+				CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
+				Variables.NeedsResolutionContextUpdate = true;
+			}
 
-				if (!ParameterNameCache [CurrentFrameIndex].Contains (exp) &&
+			if (!isCallingCreateVarObjectImplicitly) {
+				var nameCache = ParameterNameCache [CurrentFrameIndex];
+				if (nameCache != null && !nameCache.Contains (exp) &&
 				    (VariableNameCache[CurrentFrameIndex] == null ||
 					!VariableNameCache [CurrentFrameIndex].Contains (exp)))
 					return ObjectValue.CreateUnknown(exp);

@@ -39,6 +39,16 @@ using MonoDevelop.Core.Execution;
 
 namespace MonoDevelop.Debugger.Gdb
 {
+	public class GdbException : InvalidOperationException
+	{
+		public readonly string Command;
+
+		public GdbException(string cmd, string msg) : base(msg)
+		{
+			Command = cmd;
+		} 
+	}
+
 	class GdbSession: DebuggerSession
 	{
 		Process proc;
@@ -575,7 +585,12 @@ namespace MonoDevelop.Debugger.Gdb
 			else
 				return str;
 		}
-		
+
+		public override string ResolveExpression (string expression, SourceLocation location)
+		{
+			return base.ResolveExpression (expression, location);
+		}
+
 		public GdbCommandResult RunCommand (string command, params string[] args)
 		{
 			lock (gdbLock) {
@@ -585,16 +600,18 @@ namespace MonoDevelop.Debugger.Gdb
 					lock (eventLock) {
 						running = true;
 					}
-					
+
+					command = command + " " + string.Join (" ", args);
+
 					if (logGdb)
-						Console.WriteLine ("gdb<: " + command + " " + string.Join (" ", args));
-					
-					sin.WriteLine (command + " " + string.Join (" ", args));
+						Console.WriteLine ("gdb<: " + command);
+
+					sin.WriteLine (command);
 					
 					if (!Monitor.Wait (syncLock, CommandTimeout))
-						throw new InvalidOperationException ("Command execution timeout.");
+						throw new GdbException (command,"Command execution timeout.");
 					if (lastResult.Status == CommandStatus.Error)
-						throw new InvalidOperationException (lastResult.ErrorMessage);
+						throw new GdbException (command,lastResult.ErrorMessage);
 					return lastResult;
 				}
 			}

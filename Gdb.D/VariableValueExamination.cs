@@ -374,9 +374,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			// If variable cannot be resolved, try to let gdb evaluate it
 			if (baseType == null) {
-				var res = Backtrace.DSession.RunCommand ("-data-evaluate-expression", variableName);
-				
-				return ObjectValue.CreatePrimitive (ValueSource, new ObjectPath (variableName), "<unknown>", new EvaluationResult (res.GetValueString ("value")), ObjectValueFlags.Variable);
+				try{
+					var res = Backtrace.DSession.RunCommand ("-data-evaluate-expression", variableName);
+					return ObjectValue.CreatePrimitive (ValueSource, new ObjectPath (variableName), "<unknown>", new EvaluationResult (res.GetValueString ("value")), ObjectValueFlags.Variable);
+				}
+				catch(GdbException ex) {
+					return ObjectValue.CreateFatalError (ex.Command, ex.Message, ObjectValueFlags.Error);
+				}
 			}
 
 			var v = EvaluateVariable (variableName, ref baseType, flags, new ObjectPath (variableName));
