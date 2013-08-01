@@ -668,7 +668,7 @@ namespace MonoDevelop.Debugger.Gdb
 				case '&':
 					if (line.Length > 1 && line[1] == '"')
 						line = line.Substring (2, line.Length - 5);
-					ThreadPool.QueueUserWorkItem (delegate {
+					Ide.DispatchService.GuiDispatch(delegate {
 						OnTargetOutput (false, line + "\n");
 					});
 					break;
