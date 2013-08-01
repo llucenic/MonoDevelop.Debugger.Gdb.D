@@ -363,7 +363,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					{
 						// we by-pass variables not declared so far, thus skipping not initialized variables
 						if (ms.Definition.EndLocation > this.codeLocation)
-							return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base.ToString (), BuildObjectValueFlags (ms));
+							return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base != null ? ms.Base.ToString () : "<Unknown base type>", BuildObjectValueFlags (ms));
 						
 						baseType = ms.Base;
 						flags = BuildObjectValueFlags (ms);
@@ -459,6 +459,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var elementType = DResolver.StripAliasSymbol (t.ValueType);
 			var elementTypeToken = elementType is PrimitiveType ? (elementType as PrimitiveType).TypeToken : DTokens.INVALID;
 
+			var ov = ObjectValue.CreateArray (ValueSource, path, t.ToCode (), (int)arrayLength, flags, null);
+
 			// Strings
 			if (DGdbTools.IsCharType (elementTypeToken)) {
 				var elementsToDisplay = (int)Math.Min (arrayLength, MaximumDisplayCount);
@@ -466,10 +468,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 				Memory.Read (firstItemPointer.ToString (), DGdbTools.SizeOf(elementTypeToken) * elementsToDisplay, out rawArrayContent);
 
 				var str = DGdbTools.GetStringValue (rawArrayContent, elementTypeToken);
-				return ObjectValue.CreatePrimitive (ValueSource, path, t.ToString (), new EvaluationResult (str, arrayLength.ToString () + "´\"" + str + "\""), flags);
+
+				ov.DisplayValue = arrayLength.ToString () + "´\"" + str + "\"";
+
+				/* Return as an atomic value only
+				return ObjectValue.CreatePrimitive (ValueSource, path, t.ToString (), 
+				                                    new EvaluationResult (str, arrayLength.ToString () + "´\"" + str + "\""), 
+				                                    flags | ObjectValueFlags.Array);
+				*/
 			}
 
-			return ObjectValue.CreateArray (ValueSource, path, t.ToCode (), (int)arrayLength, flags, null);
+			return ov;
 		}
 
 		ObjectValue EvaluateAssociativeArray (string exp, AssocArrayType t, ObjectValueFlags flags, ObjectPath path)
