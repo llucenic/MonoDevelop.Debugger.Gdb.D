@@ -264,7 +264,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					         memberType is InterfaceType ||
 					         memberType is ClassType) {
 						long ptr;
-						if (Backtrace.DSession.Is64Bit)
+						if (DGdbSession.Is64Bit)
 							ptr = BitConverter.ToInt64 (bytes, currentOffset);
 						else
 							ptr = BitConverter.ToInt32 (bytes, currentOffset);
@@ -447,7 +447,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		void ExamArrayInfo(byte[] rawBytes, int start, out int arrayLength, out ulong firstItem)
 		{
-			if (Backtrace.DSession.Is64Bit) {
+			if (DGdbSession.Is64Bit) {
 				arrayLength = (int)BitConverter.ToUInt64 (rawBytes, start);
 				firstItem = BitConverter.ToUInt64 (rawBytes, start + 8);
 			} else {

@@ -56,8 +56,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 				case DTokens.Double:
 					return 8;
 				case DTokens.Real:
-					// size is 80 bits = 10 bytes, alignment is to 12
-					return 12;
+					// size is 80 bits = 10 bytes
+					if (DGdbSession.Is64Bit)
+						// alignment is to 16 bytes (on 64 bit architecture)
+						return 16;
+					else
+						// and 12 bytes (on 32 bit architecture) 
+						return 12;
 				default:
 					return 1;
 			}

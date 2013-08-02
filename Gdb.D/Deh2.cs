@@ -68,11 +68,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var res = Session.RunCommand ("-data-read-memory-bytes", hookMethod, _eh_finddataMethodLength.ToString());
 				var funcDefinition = res.GetObject("memory").GetObject(0).GetValueString("contents");
 
-				var returnOffset = funcDefinition.IndexOf(Session.Is64Bit ? _eh_finddataSearchPattern_x64 : _eh_finddataSearchPattern_x86);
-				if(returnOffset < 0)
-					returnOffset = funcDefinition.IndexOf((Session.Is64Bit ? "48" : "") + _eh_finddataSearchPattern_2);
+				var returnOffset = funcDefinition.IndexOf(DGdbSession.Is64Bit ? _eh_finddataSearchPattern_x64 : _eh_finddataSearchPattern_x86);
+				if (returnOffset < 0)
+					returnOffset = funcDefinition.IndexOf((DGdbSession.Is64Bit ? "48" : "") + _eh_finddataSearchPattern_2);
 
-				if(returnOffset < 0){
+				if (returnOffset < 0) {
 					Session.LogWriter(false,"Couldn't inject exception handler breakpoint - no bytecode match found");
 					return false;
 				}

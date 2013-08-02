@@ -184,7 +184,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			v = new UIntPtr[count];
 			for (int i = 0; i < count; i++) {
-				if (Session.Is64Bit)
+				if (DGdbSession.Is64Bit)
 					v [i] = new UIntPtr (BitConverter.ToUInt64 (rawBytes, i * 8));
 				else
 					v [i] = new UIntPtr (BitConverter.ToUInt32 (rawBytes, i * 4));
@@ -200,7 +200,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return false;
 			}
 
-			if (Session.Is64Bit)
+			if (DGdbSession.Is64Bit)
 				v = new IntPtr (BitConverter.ToInt64 (rawBytes,0));
 			else
 				v = new IntPtr (BitConverter.ToInt32 (rawBytes,0));

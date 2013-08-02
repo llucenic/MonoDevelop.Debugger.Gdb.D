@@ -37,7 +37,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public readonly ToStringExamination ObjectToStringExam;
 		public readonly Deh2 ExceptionHandling;
 		public int PointerSize { get; private set; }
-		public bool Is64Bit { get; private set; }
+		public static bool Is64Bit { get; private set; }
 		#endregion
 
 		#region Constructor/Init
