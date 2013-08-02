@@ -35,17 +35,27 @@ namespace MonoDevelop.Debugger.Gdb.D
 	// header: array length and memory location (stored as two unsigned ints)
 	public struct DArrayStruct
 	{
-		public IntPtr Length;
-		public IntPtr FirstItem;
+		public int Length;
+		public UIntPtr FirstItem;
 
 		public DArrayStruct(int length, int firstItemAddress) {
-			Length = new IntPtr (length);
-			FirstItem = new IntPtr (firstItemAddress);
+			Length = length;
+			FirstItem = new UIntPtr ((uint)firstItemAddress);
 		}
 
 		public DArrayStruct(long length, long firstItemAddress) {
-			Length = new IntPtr (length);
-			FirstItem = new IntPtr (firstItemAddress);
+			Length = (int)length;
+			FirstItem = new UIntPtr ((ulong)firstItemAddress);
+		}
+
+		public DArrayStruct(uint length, uint firstItemAddress) {
+			Length = (int)length;
+			FirstItem = new UIntPtr (firstItemAddress);
+		}
+
+		public DArrayStruct(ulong length, ulong firstItemAddress) {
+			Length = (int)length;
+			FirstItem = new UIntPtr (firstItemAddress);
 		}
 	}
 
@@ -73,11 +83,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			// @0 : Array length
 			// @1 : First item
-			IntPtr[] hdr;
+			UIntPtr[] hdr;
 			if (!Read (exp, 2, out hdr))
 				return new DArrayStruct ();
 
-			return new DArrayStruct { Length = hdr[0], FirstItem = hdr[1] };
+			return new DArrayStruct { Length = (int)hdr[0].ToUInt32(), FirstItem = hdr[1] };
 		}
 
 		public byte[] ReadArray(string arrayHeaderAddress, int itemSize = 1)
@@ -93,14 +103,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var hdr = ReadDArrayHeader (arrayHeaderAddress);
 
 			string s;
-			Read (hdr.FirstItem.ToString (), hdr.Length.ToInt32 (), out s, charWidth);
+			Read (hdr.FirstItem.ToString (), hdr.Length, out s, charWidth);
 
 			return s;
 		}
 
 		public bool Read(DArrayStruct arrayInfo, out byte[] data, int itemSize = 1)
 		{
-			return Read (arrayInfo.FirstItem.ToString (), arrayInfo.Length.ToInt32 () * itemSize, out data);
+			return Read (arrayInfo.FirstItem.ToString (), arrayInfo.Length * itemSize, out data);
 		}
 
 		public string ReadDynamicObjectTypeString(string exp)
@@ -164,7 +174,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return false;
 		}
 
-		public bool Read (string exp, int count, out IntPtr[] v)
+		public bool Read (string exp, int count, out UIntPtr[] v)
 		{
 			byte[] rawBytes;
 			if (!Read (BuildAddressExpression(exp,"(int[]){0}"), CalcOffset(count), out rawBytes)) {
@@ -172,12 +182,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 				return false;
 			}
 
-			v = new IntPtr[count];
+			v = new UIntPtr[count];
 			for (int i = 0; i < count; i++) {
 				if (Session.Is64Bit)
-					v [i] = new IntPtr (BitConverter.ToInt64 (rawBytes, i * 8));
+					v [i] = new UIntPtr (BitConverter.ToUInt64 (rawBytes, i * 8));
 				else
-					v [i] = new IntPtr (BitConverter.ToInt32 (rawBytes, i * 4));
+					v [i] = new UIntPtr (BitConverter.ToUInt32 (rawBytes, i * 4));
 			}
 			return true;
 		}
@@ -229,6 +239,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region Lowlevel
+		public bool Read(string exp, uint length, out byte[] data)
+		{
+			return Read (exp, (int)length, out data);
+		}
+
 		public bool Read(string exp, int length, out byte[] data)
 		{
 			if (string.IsNullOrWhiteSpace (exp))

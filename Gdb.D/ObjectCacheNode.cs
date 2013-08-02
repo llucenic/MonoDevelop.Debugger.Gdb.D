@@ -35,6 +35,19 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public ObjectRootCacheNode() : base() {}
 	}
 
+	class SubArrayCacheNode : ObjectCacheNode
+	{
+		public readonly ulong firstItem;
+		public readonly int length;
+
+		public SubArrayCacheNode(string n, AbstractType t, ulong firstItemPointer, int len)
+			: base(n, t, firstItemPointer.ToString())
+		{
+			firstItem = firstItemPointer;
+			length = len;
+		}
+	}
+
 	class ObjectCacheNode
 	{
 		public readonly string Name;
@@ -44,7 +57,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		protected ObjectCacheNode() {}
 		public ObjectCacheNode(string n, AbstractType t, string exp) {
-
 			if(string.IsNullOrEmpty(n))
 				throw new ArgumentNullException("name","Child name must not be empty!");
 			if(t == null)

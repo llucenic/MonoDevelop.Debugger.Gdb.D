@@ -95,11 +95,20 @@ namespace MonoDevelop.Debugger.Gdb.D
 			var elementType = DResolver.StripAliasSymbol (t.ValueType);
 			var sizeOfElement = SizeOf (elementType);
 
-			var header = Memory.ReadDArrayHeader (cacheNode.addressExpression);
-			elementsToDisplay = Math.Min (header.Length.ToInt32 (), index + elementsToDisplay) - index;
+			ulong firstItemPointer;
+			if (cacheNode is SubArrayCacheNode) {
+				var sac = cacheNode as SubArrayCacheNode;
+				firstItemPointer = sac.firstItem;
+				elementsToDisplay = Math.Min (sac.length, index + elementsToDisplay) - index;
+			} else {
+				var header = Memory.ReadDArrayHeader (cacheNode.addressExpression);
+				firstItemPointer = header.FirstItem.ToUInt64 ();
+				elementsToDisplay = Math.Min (header.Length, index + elementsToDisplay) - index;
+			}
 
 			byte[] rawArrayContent;
-			Memory.Read ((header.FirstItem.ToInt64() + index * sizeOfElement).ToString (), sizeOfElement * elementsToDisplay, out rawArrayContent);
+			var startAddress = firstItemPointer + (ulong)(index * sizeOfElement);
+			Memory.Read (startAddress.ToString (), sizeOfElement * elementsToDisplay, out rawArrayContent);
 
 			var children = new ObjectValue[elementsToDisplay];
 			ObjectPath item;
@@ -112,8 +121,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 				var elementTypeString = elementType.ToCode ();
 				var hex = DisplayAsHex;
 
-				for (int i = 0; i < elementsToDisplay; i++) {
-					var valStr = valFunc (rawArrayContent, i * sizeOfElement, hex);
+				for (uint i = 0; i < elementsToDisplay; i++) {
+					var valStr = valFunc (rawArrayContent, (int)(i * sizeOfElement), hex);
 					item = arrayPath.Append ((index + i).ToString ());
 
 					children [i] = ObjectValue.CreatePrimitive (ValueSource, item, elementTypeString,
@@ -123,17 +132,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else if (elementType is ArrayType) {
 				var elementArrayType = elementType as ArrayType;
 
-				for (int i = elementsToDisplay - 1; i >= 0; i--){
+				for (var i = elementsToDisplay - 1; i >= 0; i--){
 					item = arrayPath.Append ((index + i).ToString ());
+					try{
+						int subArrayLength;
+						ulong subArrayFirstPointer;
+						ExamArrayInfo (rawArrayContent, i * sizeOfElement, out subArrayLength, out subArrayFirstPointer);
 
-					long subArrayLength;
-					long subArrayFirstPointer;
-					ExamArrayInfo (rawArrayContent, i * sizeOfElement, out subArrayLength, out subArrayFirstPointer);
+						children [i] = EvaluateArray (subArrayLength, subArrayFirstPointer, elementArrayType, 
+						                              ObjectValueFlags.ArrayElement, item);
+						cacheNode.Set(new SubArrayCacheNode(item.LastName, elementArrayType, subArrayFirstPointer, subArrayLength));
 
-					children [i] = EvaluateArray (subArrayLength, subArrayFirstPointer, elementArrayType, 
-					                              ObjectValueFlags.ArrayElement, item);
-					cacheNode.Set(new ObjectCacheNode(item.LastName, elementArrayType, (subArrayFirstPointer+i*sizeOfElement).ToString()));
-				}
+					}catch(Exception ex) {
+						Ide.MessageService.ShowException (ex);
+					}
+									}
 			}
 			else if (elementType is PointerType || 
 			         elementType is InterfaceType || 
@@ -429,29 +442,30 @@ namespace MonoDevelop.Debugger.Gdb.D
 		ObjectValue EvaluateArray (string exp, ArrayType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			var header = Memory.ReadDArrayHeader (exp);
-			return EvaluateArray (header.Length.ToInt64 (), header.FirstItem.ToInt64 (), t, flags, path);
+			return EvaluateArray (header.Length, header.FirstItem.ToUInt64 (), t, flags, path);
 		}
 
-		void ExamArrayInfo(byte[] rawBytes, int start, out long arrayLength, out long firstItem)
+		void ExamArrayInfo(byte[] rawBytes, int start, out int arrayLength, out ulong firstItem)
 		{
 			if (Backtrace.DSession.Is64Bit) {
-				arrayLength = BitConverter.ToInt64 (rawBytes, start);
-				firstItem = BitConverter.ToInt64 (rawBytes, start + 8);
+				arrayLength = (int)BitConverter.ToUInt64 (rawBytes, start);
+				firstItem = BitConverter.ToUInt64 (rawBytes, start + 8);
 			} else {
-				arrayLength = BitConverter.ToInt32 (rawBytes, start);
-				firstItem = BitConverter.ToInt32 (rawBytes, start + 4);
+				arrayLength = (int)BitConverter.ToUInt32 (rawBytes, start);
+				firstItem = BitConverter.ToUInt32 (rawBytes, start + 4);
 			}
 		}
 
 		ObjectValue EvaluateArray (byte[] rawBytes, int start, ArrayType t, ObjectValueFlags flags, ObjectPath path)
 		{
-			long arrayLength, firstItem;
+			int arrayLength;
+			ulong firstItem;
 			ExamArrayInfo (rawBytes, start, out arrayLength, out firstItem);
 
 			return EvaluateArray (arrayLength, firstItem, t, flags, path);
 		}
 
-		ObjectValue EvaluateArray (long arrayLength, long firstItemPointer, ArrayType t, ObjectValueFlags flags, ObjectPath path)
+		ObjectValue EvaluateArray (int arrayLength, ulong firstItemPointer, ArrayType t, ObjectValueFlags flags, ObjectPath path)
 		{
 			if (firstItemPointer < 1)
 				return ObjectValue.CreateNullObject (ValueSource, path, t.ToCode (), flags | ObjectValueFlags.Array);
@@ -570,6 +584,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 
 			return Backtrace.DSession.PointerSize;
+		}
+
+		uint SizeOfU(AbstractType t)
+		{
+			return (uint)SizeOf (t);
 		}
 
 		public static ObjectValueFlags BuildObjectValueFlags (DSymbol ds)
