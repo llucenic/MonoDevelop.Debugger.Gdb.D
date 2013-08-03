@@ -337,7 +337,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// Only create new if the cursor location is different from the previous
 			if (firstFrameEditorData != null &&
 				firstFrameEditorData.SyntaxTree.FileName == ff.SourceLocation.FileName &&
-				firstFrameEditorData.CaretLocation == codeLocation)
+				firstFrameEditorData.CaretLocation.Line == codeLocation.Line)
 				return true;
 
 			firstFrameEditorData = DResolverWrapper.CreateEditorData (document);
