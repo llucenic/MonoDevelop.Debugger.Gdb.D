@@ -221,11 +221,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 			else if (type.Contains("immutable(wchar)[]")) {
 				// we support Phobos alias for wstring
-				return type.Replace("immutable(wchar)[]", "string");
+				return type.Replace("immutable(wchar)[]", "wstring");
 			}
 			else if (type.Contains("immutable(dchar)[]")) {
 				// we support Phobos alias for dstring
-				return type.Replace("immutable(dchar)[]", "string");
+				return type.Replace("immutable(dchar)[]", "dstring");
 			}
 			else {
 				return type;

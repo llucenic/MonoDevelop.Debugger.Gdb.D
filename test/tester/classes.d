@@ -14,6 +14,11 @@ class Ancestor : IAbstract
 	{
 		return -2;
 	}
+
+	override string toString()
+	{
+		return "Hello from overriden toString() in Ancestor !";
+	}
 }
 
 class Descendant : Ancestor

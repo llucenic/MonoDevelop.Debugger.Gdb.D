@@ -41,49 +41,27 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Mono.Posix" />
-    <Reference Include="Mono.Debugging, Version=0.0.0.0, Culture=neutral, PublicKeyToken=5e9ce85b0923c84f">
-      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\Mono.Debugging.dll</HintPath>
-      <Private>False</Private>
-      <Package>monodevelop</Package>
-      <SpecificVersion>False</SpecificVersion>
-    </Reference>
-    <Reference Include="Mono.Debugging.Soft, Version=0.0.0.0, Culture=neutral, PublicKeyToken=5e9ce85b0923c84f">
-      <Package>monodevelop-core-addins</Package>
-      <Private>False</Private>
-      <SpecificVersion>False</SpecificVersion>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="MonoDevelop.Core">
-      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
-      <Private>False</Private>
-      <Package>monodevelop</Package>
+      <HintPath>..\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.Ide">
-      <HintPath>..\tutorial.lib\monodevelop\main\build\bin\MonoDevelop.Ide.dll</HintPath>
-      <Private>False</Private>
-      <Package>monodevelop</Package>
+      <HintPath>..\monodevelop\main\build\bin\MonoDevelop.Ide.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.Debugger">
-      <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger\MonoDevelop.Debugger.dll</HintPath>
-      <Private>False</Private>
-      <Package>monodevelop-core-addins</Package>
-    </Reference>
-    <Reference Include="MonoDevelop.Debugger.Soft">
-      <HintPath>..\tutorial.lib\monodevelop\main\build\AddIns\MonoDevelop.Debugger.Soft\MonoDevelop.Debugger.Soft.dll</HintPath>
-      <Private>False</Private>
-      <Package>monodevelop-core-addins</Package>
+      <HintPath>..\monodevelop\main\build\AddIns\MonoDevelop.Debugger\MonoDevelop.Debugger.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.D">
-      <HintPath>ext\MonoDevelop.D.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath>
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
-      <HintPath>ext\ICSharpCode.NRefactory.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\monodevelop\main\build\bin\ICSharpCode.NRefactory.dll</HintPath>
     </Reference>
     <Reference Include="D_Parser">
-      <HintPath>ext\D_Parser.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Debugging">
+      <HintPath>..\monodevelop\main\build\bin\Mono.Debugging.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -126,5 +104,8 @@
   <ItemGroup>
     <Folder Include="Gdb\" />
     <Folder Include="Gdb.D\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="features.md" />
   </ItemGroup>
 </Project>
