@@ -102,7 +102,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Manifest.addin.xml">
-      <LogicalName>MonoDevelop.Debugger.MonoDevelop.D.Manifest.addin.xml</LogicalName>
+      <LogicalName>MonoDevelop.Debugger.Gdb.D.Manifest.addin.xml</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Gdb.D\toString_Linux_x64.txt">
       <LogicalName>toString_Linux_x64</LogicalName>

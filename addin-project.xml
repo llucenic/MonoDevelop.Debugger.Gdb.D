@@ -1,5 +1,5 @@
 ﻿<AddinProject appVersion="4.0">
-	<Project platforms="Mac Linux">
+	<Project platforms="Linux Mac Win32">
 		<AddinFile>build/MonoDevelop.Debugger.Gdb.D.dll</AddinFile>
 		<BuildFile>MonoDevelop.Debugger.Gdb.D.sln</BuildFile>
 		<BuildConfiguration>Debug</BuildConfiguration>

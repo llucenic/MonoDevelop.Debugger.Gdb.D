@@ -182,7 +182,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 
 			// step 2: inject the reassembled code that already has been prepared
-			try{
+			try {
 				foreach (var cmd in InjectCommands) {
 					if (!string.IsNullOrWhiteSpace(cmd)){
 						res = Session.RunCommand (cmd);
@@ -194,7 +194,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 				IsInjected = true;
 				return true;
-			}catch(Exception ex) {
+			}
+			catch (Exception ex) {
+				Session.LogWriter (true, "Exception while injecting the toString() method: " + ex.Message);
 				return false;
 			}
 		}
@@ -217,9 +219,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			// execute the injected toString() through the invoke method
 			GdbCommandResult res;
-			try{
+			try {
 				res = Session.RunCommand (string.Format (InvokeCommand, MemoryExamination.enforceRawExpr(ref exp) ? exp : ("(int*)"+exp)));
-			}catch(Exception ex) {
+			}
+			catch(Exception ex) {
 				Session.LogWriter (true, "Exception while running injected toString method for '" + exp + "': " + ex.Message);
 				return null;
 			}
