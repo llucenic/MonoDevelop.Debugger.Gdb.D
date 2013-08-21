@@ -43,24 +43,39 @@
     <Reference Include="Mono.Posix" />
     <Reference Include="System" />
     <Reference Include="MonoDevelop.Core">
+      <Private>False</Private>
+      <Package>monodevelop</Package>
       <HintPath>..\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.Ide">
+      <Private>False</Private>
+      <Package>monodevelop</Package>
       <HintPath>..\monodevelop\main\build\bin\MonoDevelop.Ide.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.Debugger">
+      <Private>False</Private>
+      <Package>monodevelop-core-addins</Package>
       <HintPath>..\monodevelop\main\build\AddIns\MonoDevelop.Debugger\MonoDevelop.Debugger.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.D">
-      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath>
+      <HintPath>ext\MonoDevelop.D.dll</HintPath>
+      <Private>False</Private>
+      <!--HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath-->
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
-      <HintPath>..\monodevelop\main\build\bin\ICSharpCode.NRefactory.dll</HintPath>
+      <HintPath>ext\ICSharpCode.NRefactory.dll</HintPath>
+      <Private>False</Private>
+      <!--HintPath>..\monodevelop\main\build\bin\ICSharpCode.NRefactory.dll</HintPath-->
     </Reference>
     <Reference Include="D_Parser">
-      <HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath>
+      <HintPath>ext\D_Parser.dll</HintPath>
+      <Private>False</Private>
+      <!--HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath-->
     </Reference>
     <Reference Include="Mono.Debugging">
+      <Private>False</Private>
+      <Package>monodevelop</Package>
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\monodevelop\main\build\bin\Mono.Debugging.dll</HintPath>
     </Reference>
   </ItemGroup>
