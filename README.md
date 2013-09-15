@@ -25,7 +25,10 @@ The preliminary roadmap and known issues (list of features and bugs) are to be f
 ### How to install
 Having MonoDevelop version 4.0 or higher is a prerequisite.
 
-For now, in order to use the add-in, please get the version accessible through MonoDevelop repository for Mono-D.  
+As most of the repositories for Linux distributions contain currently MonoDevelop 3, you can get a copy of MonoDevelop 4.0.12 from [this nice set of pre-built packages](http://software.opensuse.org/download/package?project=home:tpokorra:mono&package=monodevelop-opt) for various popular Linux distributions.
+For Ubuntu 12.04+ and Mint 15 users, there is also a [version 4.1.19](http://simendsjo.me/files/abothe) built by Alexander.
+
+For now, in order to use add-in, please get the version accessible through MonoDevelop repository for Mono-D.  
 Set up the `http://mono-d.alexanderbothe.com/main.mrep` repository location in Manage repositories... option within Add-in Manager Gallery in MonoDevelop. Then (if you don't already have it) install 'D Language Binding' (i.e. Mono-D) and then 'D Language Debugging Support under GNU/Linux (GDB)' (i.e. MonoDevelop.Debugger.Gdb.D) add-ins. Enjoy !
 
 ### How to build
