@@ -529,7 +529,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			// Interpret & resolve the parsed string so it'll become accessible for abstract examination
 			ITypeDeclaration bt = null;
-			if (string.IsNullOrEmpty (typeName))
+			if (!string.IsNullOrEmpty (typeName))
 			{
 				DToken optToken;
 				bt = DParser.ParseBasicType (typeName, out optToken);
