@@ -522,21 +522,32 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// which might be different from the declared type due to inheritance or interfacing
 			var typeName = Memory.ReadDynamicObjectTypeString (exp);
 
+
+
 			if (string.IsNullOrEmpty (representativeDisplayValue))
 				representativeDisplayValue = typeName;
 
 			// Interpret & resolve the parsed string so it'll become accessible for abstract examination
-			DToken optToken;
-			var bt = DParser.ParseBasicType (typeName, out optToken);
-			StripTemplateTypes (ref bt);
-			actualClassType = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx) ?? actualClassType;
+			ITypeDeclaration bt = null;
+			if (string.IsNullOrEmpty (typeName))
+			{
+				DToken optToken;
+				bt = DParser.ParseBasicType (typeName, out optToken);
+				StripTemplateTypes (ref bt);
+				actualClassType = TypeDeclarationResolver.ResolveSingle (bt, resolutionCtx) ?? actualClassType;
+			}
 
 			if (actualClassType == null) {
 				Backtrace.DSession.LogWriter (false,"Couldn't resolve \""+exp+"\":\nUnresolved Type: "+typeName+"\n");
 				Backtrace.DSession.LogWriter (false,"Ctxt: "+resolutionCtx.ScopedBlock.ToString()+"\n");
 			}
 
-			return ObjectValue.CreateObject (ValueSource, path, bt.ToString(true), representativeDisplayValue, flags, null);
+			return ObjectValue.CreateObject (ValueSource, path, 
+				bt != null ? bt.ToString(true) : 
+				(actualClassType is DSymbol ? 
+					(actualClassType as DSymbol).Definition.ToString(false) : 
+					"<Unknown object type>"), 
+				representativeDisplayValue, flags, null);
 		}
 
 		static void StripTemplateTypes(ref ITypeDeclaration td)
