@@ -238,14 +238,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 				throw new InvalidDataException ("Couldn't read returned toString meta data (exp=" + exp + ")");
 
 			var stringLength = BitConverter.ToUInt32(returnData,0);
-			bool hadException = BitConverter.ToInt32(returnData, 4) != 0;
+			//bool hadException = BitConverter.ToInt32(returnData, 4) != 0;
 
 			// Read the actual string
 			var stringResult = Encoding.UTF8.GetString (returnData, 8, (int)stringLength);
-
+			/*
 			if (hadException)
 				return "Exception in " + exp + ".toString(): " + stringResult;
-			else
+			else*/
 				return stringResult;
 		}
 	}
