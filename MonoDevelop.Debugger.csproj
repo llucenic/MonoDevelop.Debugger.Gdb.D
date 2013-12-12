@@ -40,19 +40,10 @@
     <ConsolePause>False</ConsolePause>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Mono.Posix" />
     <Reference Include="System" />
-    <Reference Include="MonoDevelop.Core">
-      <Package>monodevelop</Package>
-      <HintPath>..\monodevelop\main\build\bin\MonoDevelop.Core.dll</HintPath>
-    </Reference>
     <Reference Include="MonoDevelop.Ide">
       <HintPath>ext\MonoDevelop.Ide.dll</HintPath>
       <Private>False</Private>
-    </Reference>
-    <Reference Include="MonoDevelop.Debugger">
-      <Package>monodevelop-core-addins</Package>
-      <HintPath>..\monodevelop\main\build\AddIns\MonoDevelop.Debugger\MonoDevelop.Debugger.dll</HintPath>
     </Reference>
     <Reference Include="MonoDevelop.D">
       <HintPath>ext\MonoDevelop.D.dll</HintPath>
@@ -61,8 +52,8 @@
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
       <HintPath>ext\ICSharpCode.NRefactory.dll</HintPath>
-      <Private>False</Private>
       <!--HintPath>..\monodevelop\main\build\bin\ICSharpCode.NRefactory.dll</HintPath-->
+      <Private>False</Private>
     </Reference>
     <Reference Include="D_Parser">
       <HintPath>ext\D_Parser.dll</HintPath>
@@ -70,9 +61,18 @@
       <!--HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath-->
     </Reference>
     <Reference Include="Mono.Debugging">
-      <Package>monodevelop</Package>
-      <HintPath>..\monodevelop\main\build\bin\Mono.Debugging.dll</HintPath>
+      <HintPath>ext\Mono.Debugging.dll</HintPath>
+      <Private>False</Private>
     </Reference>
+    <Reference Include="MonoDevelop.Core">
+      <HintPath>ext\MonoDevelop.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MonoDevelop.Debugger">
+      <HintPath>ext\MonoDevelop.Debugger.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Mono.Posix" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Gdb\CommandStatus.cs" />

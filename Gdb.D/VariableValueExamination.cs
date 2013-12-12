@@ -327,7 +327,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			NeedsResolutionContextUpdate = false;
 
 			var ff = DebuggingService.CurrentCallStack.GetFrame(Backtrace.CurrentFrameIndex);
-			var document = Ide.IdeApp.Workbench.OpenDocument (ff.SourceLocation.FileName, Ide.IdeApp.Workspace.GetProjectContainingFile(ff.SourceLocation.FileName));
+			var document = Ide.IdeApp.Workbench.OpenDocument (ff.SourceLocation.FileName);
 			if (document == null)
 				return false;
 
