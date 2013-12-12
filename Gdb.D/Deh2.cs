@@ -34,7 +34,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 	{
 		bool injected;
 		public readonly DGdbSession Session;
-		const string hookMethod = "_D2rt4deh213__eh_finddataFPvZPyS2rt4deh29FuncTable";//"_D2rt4deh213__eh_finddataFPvZPS2rt4deh29FuncTable";//"_D2rt4deh29terminateFZv";
+		readonly static string[] findDataMethods = new[]{
+			"_D2rt15deh_win64_posix13__eh_finddataFPvZPyS2rt15deh_win64_posix9FuncTable",
+			"_D2rt4deh213__eh_finddataFPvZPyS2rt4deh29FuncTable",
+			"_D2rt4deh213__eh_finddataFPvZPS2rt4deh29FuncTable",
+		};
 		const int _eh_finddataMethodLength = 128;
 		/// <summary>
 		/// Code pattern to search in the function definition.
@@ -65,21 +69,24 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			try{
 				// Get the breakpoint offset
-				var res = Session.RunCommand ("-data-read-memory-bytes", hookMethod, _eh_finddataMethodLength.ToString());
-				var funcDefinition = res.GetObject("memory").GetObject(0).GetValueString("contents");
+				foreach(var hookMethod in findDataMethods)
+				{
+					var res = Session.RunCommand ("-data-read-memory-bytes", hookMethod, _eh_finddataMethodLength.ToString());
+					var funcDefinition = res.GetObject("memory").GetObject(0).GetValueString("contents");
 
-				var returnOffset = funcDefinition.IndexOf(DGdbSession.Is64Bit ? _eh_finddataSearchPattern_x64 : _eh_finddataSearchPattern_x86);
-				if (returnOffset < 0)
-					returnOffset = funcDefinition.IndexOf((DGdbSession.Is64Bit ? "48" : "") + _eh_finddataSearchPattern_2);
+					var returnOffset = funcDefinition.IndexOf(DGdbSession.Is64Bit ? _eh_finddataSearchPattern_x64 : _eh_finddataSearchPattern_x86);
+					if (returnOffset < 0)
+						returnOffset = funcDefinition.IndexOf((DGdbSession.Is64Bit ? "48" : "") + _eh_finddataSearchPattern_2);
 
-				if (returnOffset < 0) {
-					Session.LogWriter(false,"Couldn't inject exception handler breakpoint - no bytecode match found");
-					return false;
+					if (returnOffset > 0) {
+						res = Session.RunCommand("-break-insert","*("+hookMethod+"+"+(returnOffset / 2).ToString()+")");
+						injected = res.Status == CommandStatus.Done;
+						return true;
+					}
 				}
 
-				res = Session.RunCommand("-break-insert","*("+hookMethod+"+"+(returnOffset / 2).ToString()+")");
-				injected = res.Status == CommandStatus.Done;
-				return true;
+				Session.LogWriter(false,"Couldn't inject exception handler breakpoint - no bytecode match found");
+				return false;
 			}
 			catch(Exception ex) {
 				Session.LogWriter (false, "Couldn't inject exception handler breakpoint: " + ex.Message);
