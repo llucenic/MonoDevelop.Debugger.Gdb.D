@@ -36,6 +36,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public readonly DGdbSession Session;
 		readonly static string[] findDataMethods = new[]{
 			"_D2rt15deh_win64_posix13__eh_finddataFPvZPyS2rt15deh_win64_posix9FuncTable",
+			"finddataFPvZPyS2rt15deh_win64_posix9FuncTable",
+			"finddataFPvZPyS2rt15deh_win64_posix9FuncTable^@_D2rt15deh_win64_posix13__eh_",
 			"_D2rt4deh213__eh_finddataFPvZPyS2rt4deh29FuncTable",
 			"_D2rt4deh213__eh_finddataFPvZPS2rt4deh29FuncTable",
 		};
@@ -66,32 +68,40 @@ namespace MonoDevelop.Debugger.Gdb.D
 		{
 			if (injected)
 				return true;
-
-			try{
-				// Get the breakpoint offset
-				foreach(var hookMethod in findDataMethods)
+				
+			// Get the breakpoint offset
+			GdbCommandResult res = null;
+			string hookMethod = null;
+			foreach(var finddata in findDataMethods)
+			{
+				try{
+					res = Session.RunCommand ("-data-read-memory-bytes", finddata, _eh_finddataMethodLength.ToString());
+					hookMethod = finddata;
+				}catch(GdbException)
 				{
-					var res = Session.RunCommand ("-data-read-memory-bytes", hookMethod, _eh_finddataMethodLength.ToString());
-					var funcDefinition = res.GetObject("memory").GetObject(0).GetValueString("contents");
-
-					var returnOffset = funcDefinition.IndexOf(DGdbSession.Is64Bit ? _eh_finddataSearchPattern_x64 : _eh_finddataSearchPattern_x86);
-					if (returnOffset < 0)
-						returnOffset = funcDefinition.IndexOf((DGdbSession.Is64Bit ? "48" : "") + _eh_finddataSearchPattern_2);
-
-					if (returnOffset > 0) {
-						res = Session.RunCommand("-break-insert","*("+hookMethod+"+"+(returnOffset / 2).ToString()+")");
-						injected = res.Status == CommandStatus.Done;
-						return true;
-					}
+					continue;
 				}
+				break;
+			}
+			if (res == null) {
+				Session.LogWriter(false,"Couldn't inject exception handler breakpoint - no finddata symbol found!");
+				return false;
+			}
 
-				Session.LogWriter(false,"Couldn't inject exception handler breakpoint - no bytecode match found");
-				return false;
+			var funcDefinition = res.GetObject("memory").GetObject(0).GetValueString("contents");
+
+			var returnOffset = funcDefinition.IndexOf(DGdbSession.Is64Bit ? _eh_finddataSearchPattern_x64 : _eh_finddataSearchPattern_x86);
+			if (returnOffset < 0)
+				returnOffset = funcDefinition.IndexOf((DGdbSession.Is64Bit ? "48" : "") + _eh_finddataSearchPattern_2);
+
+			if (returnOffset > 0) {
+				res = Session.RunCommand("-break-insert","*("+hookMethod+"+"+(returnOffset / 2).ToString()+")");
+				injected = res.Status == CommandStatus.Done;
+				return true;
 			}
-			catch(Exception ex) {
-				Session.LogWriter (false, "Couldn't inject exception handler breakpoint: " + ex.Message);
-				return false;
-			}
+
+			Session.LogWriter(false,"Couldn't inject exception handler breakpoint - no bytecode match found");
+			return false;
 		}
 
 		public bool HandleBreakpoint(GdbCommandResult res)
