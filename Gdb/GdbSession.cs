@@ -246,9 +246,10 @@ namespace MonoDevelop.Debugger.Gdb
 		protected override void OnExit ()
 		{
 			lock (gdbLock) {
-				//InternalStop ();
-				RunCommand ("kill");
-				KillGdb ();
+				if (!proc.HasExited) {
+					RunCommand ("kill");
+					KillGdb ();
+				}
 				TargetEventArgs args = new TargetEventArgs (TargetEventType.TargetExited);
 				OnTargetEvent (args);
 			}
