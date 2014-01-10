@@ -69,6 +69,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#region Properties
 		public bool IsInjected { get; private set; }
 		public bool InjectionSupported { get; private set; }
+		static readonly bool CanInject;
 
 		public readonly DGdbSession Session;
 		static readonly string[] InjectCommands;
@@ -107,6 +108,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			var assemblerInstructions = new StringBuilder ();
 
+			try{
 			using (var s = Assembly.GetExecutingAssembly ().GetManifestResourceStream (resourceName))
 			using (var sr = new StreamReader(s)) {
 				string line;
@@ -120,6 +122,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 							assemblerInstructions.Append (g.Value.Replace (" ", string.Empty));
 					}
 				}
+			}
+			}catch(Exception ex) {
+				MonoDevelop.Core.LoggingService.LogDebug ("Couldn't find toString() stub to inject", ex);
+				return;
 			}
 
 			var tempStringBuilder = new StringBuilder ();
@@ -151,6 +157,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				","+StringBufferSize.ToString()+
 				",$"+HelperVarId+"+4)";
 
+			CanInject = true;
 
 			// Prepare the helper variable allocation command
 			HelperVariableAllocCommand = "set $" + HelperVarId + " = malloc(" + HelpVarLength.ToString() + ")";
@@ -159,7 +166,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public bool InjectToStringCode ()
 		{
-			if (IsInjected || !InjectionSupported)
+			if (!CanInject || IsInjected || !InjectionSupported)
 				return false;
 
 			// we prepare the toString() method call on interfaces and class instances
