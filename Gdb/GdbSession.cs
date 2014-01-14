@@ -36,6 +36,7 @@ using System.Threading;
 using Mono.Debugging.Client;
 using MonoDevelop.Core;
 using MonoDevelop.Core.Execution;
+using MonoDevelop.Debugger.Options;
 
 namespace MonoDevelop.Debugger.Gdb
 {
@@ -81,7 +82,7 @@ namespace MonoDevelop.Debugger.Gdb
 		
 		public GdbSession ()
 		{
-			logGdb = !string.IsNullOrEmpty (Environment.GetEnvironmentVariable ("MONODEVELOP_GDB_LOG"));
+			logGdb = !string.IsNullOrEmpty (Environment.GetEnvironmentVariable ("MONODEVELOP_GDB_LOG")) || PropertyService.Get("LogGdb",false);
 		}
 		
 		protected override void OnRun (DebuggerStartInfo startInfo)
@@ -190,7 +191,7 @@ namespace MonoDevelop.Debugger.Gdb
 		void StartGdb ()
 		{
 			proc = new Process ();
-			proc.StartInfo.FileName = "gdb";
+			proc.StartInfo.FileName = GdbDOptions.GdbExecutable;
 			proc.StartInfo.Arguments = "-quiet -fullname -i=mi2";
 			proc.StartInfo.UseShellExecute = false;
 			proc.StartInfo.RedirectStandardInput = true;

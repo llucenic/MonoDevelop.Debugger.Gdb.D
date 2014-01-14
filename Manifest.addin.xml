@@ -5,7 +5,7 @@
        description = "D Language debugging support based on GNU Debugger support for GNU/Linux platform."
        copyright   = "MIT X11"
        category = "Debugging"
-       version   = "0.2.4.6">
+       version   = "0.2.5">
 
 	<Dependencies>
 		<Addin id="MonoDevelop.Core" version="4.0"/>
@@ -19,5 +19,10 @@
 			name="GNU Debugger (GDB) with support for D Language" 
 			features="ConditionalBreakpoints, Tracepoints, Catchpoints, Attaching, DebugFile, Stepping, Pause, Breakpoints, Disassembly"
 			type="MonoDevelop.Debugger.Gdb.D.DGdbSessionFactory" />
+	</Extension>
+
+	<Extension path = "/MonoDevelop/Ide/GlobalOptionsDialog/Preferences">
+		<Section id = "GdbGlobOptions" _label = "Gdb.D"
+			class = "MonoDevelop.Debugger.Options.GdbDOptionBinding"/>
 	</Extension>
 </Addin>

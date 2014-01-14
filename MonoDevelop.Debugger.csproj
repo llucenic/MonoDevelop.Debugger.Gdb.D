@@ -72,6 +72,24 @@
       <HintPath>ext\MonoDevelop.Debugger.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="gtk-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="gdk-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="atk-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="glib-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="glade-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
+    <Reference Include="pango-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
+      <SpecificVersion>False</SpecificVersion>
+    </Reference>
     <Reference Include="Mono.Posix" />
   </ItemGroup>
   <ItemGroup>
@@ -94,6 +112,11 @@
     <Compile Include="Misc\ArrayConversionHelpers.cs" />
     <Compile Include="Gdb.D\ObjectCacheNode.cs" />
     <Compile Include="Gdb.D\Deh2.cs" />
+    <Compile Include="Options\GdbDOptions.cs" />
+    <Compile Include="Options\GdbDOptionPanel.cs" />
+    <Compile Include="gtk-gui\generated.cs" />
+    <Compile Include="Options\OptionPanel.cs" />
+    <Compile Include="gtk-gui\MonoDevelop.Debugger.Options.OptionPanel.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Manifest.addin.xml">
@@ -102,18 +125,23 @@
     <EmbeddedResource Include="Gdb.D\toString_Linux_x64.txt">
       <LogicalName>toString_Linux_x64</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="gtk-gui\gui.stetic">
+      <LogicalName>gui.stetic</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <MonoDevelop>
       <Properties>
         <Deployment.LinuxDeployData generatePcFile="False" />
+        <GtkDesignInfo gettextClass="MonoDevelop.Core.GettextCatalog" />
       </Properties>
     </MonoDevelop>
   </ProjectExtensions>
   <ItemGroup>
     <Folder Include="Gdb\" />
     <Folder Include="Gdb.D\" />
+    <Folder Include="Options\" />
   </ItemGroup>
   <ItemGroup>
     <None Include="features.md" />
