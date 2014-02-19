@@ -10,8 +10,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 {
 	class MemberLookup : AbstractVisitor
 	{
-		TemplateIntermediateType visitee;
-		List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>> res = new List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>>();
 		List<MemberSymbol> tempMembers = new List<MemberSymbol>();
 
 		MemberLookup(ResolutionContext ctxt)
@@ -46,23 +44,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 		protected static KeyValuePair<TemplateIntermediateType, MemberSymbol[]>[] GetMembers(TemplateIntermediateType ct, ResolutionContext ctxt)
 		{
 			var lk = new MemberLookup(ctxt);
+			lk.DeepScanClass (ct, MemberFilter.Variables, false);
 
-			bool isBase = false;
-
-			while (ct != null)
-			{
-				lk.visitee = ct;
-				lk.scanChildren(ct.Definition, MemberFilter.Variables, false, isBase, false, false);
-
-				lk.res.Add(new KeyValuePair<TemplateIntermediateType, MemberSymbol[]>(ct, lk.tempMembers.ToArray()));
-				lk.tempMembers.Clear();
-
-				ct = ct.Base as TemplateIntermediateType;
-				isBase = true;
+			var res = new List<KeyValuePair<TemplateIntermediateType, MemberSymbol[]>>();
+			var l = new List<MemberSymbol> ();
+			var _ct = ct;
+			while (_ct != null) {
+				l.Clear ();
+				foreach (var m in lk.tempMembers)
+					if (m.Definition.Parent == _ct.Definition)
+						l.Add (m);
+				res.Insert (0,new KeyValuePair<TemplateIntermediateType, MemberSymbol[]> (_ct, l.ToArray ()));
+				_ct = _ct.Base as TemplateIntermediateType;
 			}
 
-			lk.res.Reverse();
-			return lk.res.ToArray();
+			return res.ToArray();
 		}
 
 		protected override bool HandleItem(PackageSymbol pack)
@@ -76,7 +72,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (dv != null && !dv.IsAlias && !dv.IsStatic)
 			{
 				//TODO: Mixins & template mixins - their mixed-in var definitions are handled _after_ the actual definition.
-				tempMembers.Add(TypeDeclarationResolver.HandleNodeMatch(dv, ctxt, visitee) as MemberSymbol);
+				tempMembers.Add(TypeDeclarationResolver.HandleNodeMatch(dv, ctxt, TemporaryResolvedNodeParent) as MemberSymbol);
 			}
 			return false;
 		}

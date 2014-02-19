@@ -365,7 +365,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// -> interfaces -> 
 
 			if (variableName == "this") {
-				baseType = D_Parser.Resolver.ExpressionSemantics.Evaluation.EvaluateType (new D_Parser.Dom.Expressions.TokenExpression (DTokens.This), resolutionCtx);
+				baseType = D_Parser.Resolver.ExpressionSemantics.ExpressionTypeEvaluation.EvaluateType (new D_Parser.Dom.Expressions.TokenExpression (DTokens.This), resolutionCtx);
 				flags = BuildObjectValueFlags(baseType as DSymbol);
 			} 
 			else 
