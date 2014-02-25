@@ -606,7 +606,7 @@ namespace MonoDevelop.Debugger.Gdb
 					command = command + " " + string.Join (" ", args);
 
 					if (logGdb)
-						LoggingService.LogDebug ("gdb<: {0}",command);
+						LoggingService.LogInfo ("gdb<: {0}",command);
 
 					sin.WriteLine (command);
 					
@@ -656,7 +656,7 @@ namespace MonoDevelop.Debugger.Gdb
 		protected virtual void ProcessOutput (string line)
 		{
 			if (logGdb)
-				LoggingService.LogDebug ("dbg>: {0}",line);
+				LoggingService.LogInfo ("dbg>: {0}",line);
 			switch (line [0]) {
 				case '^':
 					lock (syncLock) {
