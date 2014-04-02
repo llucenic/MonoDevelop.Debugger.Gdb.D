@@ -201,11 +201,15 @@ namespace MonoDevelop.Debugger.Gdb
 			
 			sout = proc.StandardOutput;
 			sin = proc.StandardInput;
-			
 			thread = new Thread (OutputInterpreter);
 			thread.Name = "GDB output interpreter";
 			thread.IsBackground = true;
+
+			//BOM generation can cause trouble on some systems -- https://github.com/llucenic/MonoDevelop.Debugger.Gdb.D/issues/3
+			var enc = Console.OutputEncoding;
+			Console.OutputEncoding = new UTF8Encoding (false);
 			thread.Start ();
+			Console.OutputEncoding = enc;
 		}
 		
 		public override void Dispose ()

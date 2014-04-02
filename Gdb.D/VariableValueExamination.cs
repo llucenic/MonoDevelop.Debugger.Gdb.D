@@ -34,6 +34,7 @@ using Mono.Debugging.Client;
 using MonoDevelop.D.Resolver;
 using System.IO;
 using D_Parser.Dom.Expressions;
+using D_Parser.Completion;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
@@ -92,7 +93,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public ObjectValue[] GetArrayChildren(ObjectCacheNode cacheNode,ObjectPath arrayPath, int index, int elementsToDisplay, EvaluationOptions options)
 		{
 			var t = cacheNode.NodeType as ArrayType;
-			var elementType = DResolver.StripAliasSymbol (t.ValueType);
+			var elementType = t.ValueType;
 			var sizeOfElement = SizeOf (elementType);
 
 			ulong firstItemPointer;
@@ -344,7 +345,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			firstFrameEditorData.CaretLocation = codeLocation;
 
-			resolutionCtx = ResolutionContext.Create (firstFrameEditorData);
+			resolutionCtx = ResolutionContext.Create (firstFrameEditorData, false);
+			CodeCompletion.DoTimeoutableCompletionTask (null, resolutionCtx, () => resolutionCtx.Push (firstFrameEditorData));
 
 			return true;
 		}
@@ -371,7 +373,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			else 
 			{
 				foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, null)) {
-					var ms = DResolver.StripAliasSymbol (t) as MemberSymbol;
+					var ms = t as MemberSymbol;
 					if (ms != null)
 					{
 						// we by-pass variables not declared so far, thus skipping not initialized variables
@@ -403,8 +405,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		ObjectValue EvaluateVariable (string exp, ref AbstractType t, ObjectValueFlags flags, ObjectPath path)
 		{
-			t = DResolver.StripAliasSymbol (t);
-
 			if (t is PrimitiveType)
 				return EvaluatePrimitive (exp, t as PrimitiveType, flags, path);
 			else if (t is PointerType)
@@ -470,7 +470,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			if (firstItemPointer < 1)
 				return ObjectValue.CreateNullObject (ValueSource, path, t.ToCode (), flags | ObjectValueFlags.Array);
 
-			var elementType = DResolver.StripAliasSymbol (t.ValueType);
+			var elementType = t.ValueType;
 			var elementTypeToken = elementType is PrimitiveType ? (elementType as PrimitiveType).TypeToken : DTokens.INVALID;
 
 			var ov = ObjectValue.CreateArray (ValueSource, path, t.ToCode (), (int)arrayLength, flags, null);
