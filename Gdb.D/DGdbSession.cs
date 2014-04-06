@@ -51,6 +51,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		protected override void OnStarted (ThreadInfo t)
 		{
+			EvaluationOptions.UseExternalTypeResolver = false;
+
 			// Determine client architecture -- Might be important on Windows when the x86 compatibility layer is active
 			var res = RunCommand ("-data-evaluate-expression","sizeof(void*)");
 			if (res != null)

@@ -372,7 +372,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			} 
 			else 
 			{
-				foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, null)) {
+				foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, new IdentifierExpression(variableName) { Location = codeLocation })) {
 					var ms = t as MemberSymbol;
 					if (ms != null)
 					{
