@@ -35,6 +35,7 @@ using MonoDevelop.D.Resolver;
 using System.IO;
 using D_Parser.Dom.Expressions;
 using D_Parser.Completion;
+using D_Parser.Resolver.ExpressionSemantics;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
@@ -355,9 +356,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public ObjectValue EvaluateVariable (string variableName)
 		{
 			UpdateTypeResolutionContext ();
+			var variableExpression = DParser.ParseExpression (variableName);
+
+			var x = variableExpression;
+			while (x is PostfixExpression)
+				x = (x as PostfixExpression).PostfixForeExpression;
+
+			if (x is TokenExpression)
+				(x as TokenExpression).Location = codeLocation;
+			else if (x is IdentifierExpression)
+				(x as IdentifierExpression).Location = codeLocation;
+			else if (x is TemplateInstanceExpression)
+				(x as TemplateInstanceExpression).Location = codeLocation;
 
 			AbstractType baseType = null;
-			ObjectValueFlags flags = ObjectValueFlags.None;
+			var flags = ObjectValueFlags.None;
 
 			// Read the symbol type out of gdb into some abstract format (AbstractType?)
 			// -> primitives
@@ -366,24 +379,17 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// -> structs/classes
 			// -> interfaces -> 
 
-			if (variableName == "this") {
-				baseType = D_Parser.Resolver.ExpressionSemantics.ExpressionTypeEvaluation.EvaluateType (new D_Parser.Dom.Expressions.TokenExpression (DTokens.This), resolutionCtx);
-				flags = BuildObjectValueFlags(baseType as DSymbol);
-			} 
-			else 
-			{
-				foreach (var t in TypeDeclarationResolver.ResolveIdentifier (variableName, resolutionCtx, new IdentifierExpression(variableName) { Location = codeLocation })) {
-					var ms = t as MemberSymbol;
-					if (ms != null)
-					{
-						// we by-pass variables not declared so far, thus skipping not initialized variables
-						if (ms.Definition.EndLocation > this.codeLocation)
-							return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base != null ? ms.Base.ToString () : "<Unknown base type>", BuildObjectValueFlags (ms));
-						
-						baseType = ms.Base;
-						flags = BuildObjectValueFlags (ms);
-						break;
-					}
+			foreach (var t in AmbiguousType.TryDissolve(ExpressionTypeEvaluation.EvaluateType(variableExpression, resolutionCtx, false))) {
+				var ms = t as MemberSymbol;
+				if (ms != null)
+				{
+					// we by-pass variables not declared so far, thus skipping not initialized variables
+					if (ms.Definition.EndLocation > this.codeLocation)
+						return ObjectValue.CreateNullObject (ValueSource, variableName, ms.Base != null ? ms.Base.ToString () : "<Unknown base type>", BuildObjectValueFlags (ms));
+					
+					baseType = ms.Base;
+					flags = BuildObjectValueFlags (ms);
+					break;
 				}
 			}
 
@@ -398,7 +404,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 				}
 			}
 
-			var v = EvaluateVariable (variableName, ref baseType, flags, new ObjectPath (variableName));
+			var v = EvaluateVariable (variableName, ref baseType, flags, new ObjectPath (variableName.Split('.')));
 			cacheRoot.Set(new ObjectCacheNode(variableName, baseType, variableName));
 			return v;
 		}
