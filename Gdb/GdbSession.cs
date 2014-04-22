@@ -252,7 +252,7 @@ namespace MonoDevelop.Debugger.Gdb
 		{
 			lock (gdbLock) {
 				if (!proc.HasExited) {
-					RunCommand ("kill");
+					//RunCommand ("kill");
 					KillGdb ();
 				}
 				TargetEventArgs args = new TargetEventArgs (TargetEventType.TargetExited);
