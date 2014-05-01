@@ -32,6 +32,7 @@ using Mono.Debugging.Client;
 using MonoDevelop.Ide.Gui;
 using MonoDevelop.Debugger.Gdb;
 using D_Parser.Misc.Mangling;
+using System.Text.RegularExpressions;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -77,6 +78,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 			CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
 		}
 
+		static readonly Regex mixinInlineRegex = new Regex("-mixin-(?<line>\\d+)", RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+
 		protected override StackFrame CreateFrame(ResultData frameData)
 		{
 			string lang = "D";
@@ -91,6 +94,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 				sfile = frameData.GetValueString("file");
 			if (sfile == null)
 				sfile = frameData.GetValueString("from");
+
+			if (sfile != null) {
+				var m = mixinInlineRegex.Match (sfile);
+				if (m.Success) {
+					sfile = sfile.Substring (0, m.Index);
+					int.TryParse (m.Groups ["line"].Value, out line);
+				}
+			}
 
 			// demangle D function/method name stored in func
 			var typeDecl = Demangler.DemangleQualifier(func);
