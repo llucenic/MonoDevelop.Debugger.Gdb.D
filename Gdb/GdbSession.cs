@@ -393,8 +393,8 @@ namespace MonoDevelop.Debugger.Gdb
 			bool notify = false;
 			
 			WaitCallback nc = delegate {
-				if (hitCount != -1)
-					binfo.UpdateHitCount (hitCount);
+				binfo.BreakEvent.HitCount = hitCount;
+
 				if (lastTrace != null)
 					binfo.UpdateLastTraceValue (lastTrace);
 			};

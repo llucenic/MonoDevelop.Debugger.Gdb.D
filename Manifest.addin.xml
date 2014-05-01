@@ -5,13 +5,13 @@
        description = "D Language debugging support based on GNU Debugger support for GNU/Linux platform."
        copyright   = "MIT X11"
        category = "Debugging"
-       version   = "0.2.10">
+       version   = "1.2.10">
 
 	<Dependencies>
-		<Addin id="MonoDevelop.Core" version="4.0"/>
-		<Addin id="MonoDevelop.Ide" version="4.0"/>
-		<Addin id="MonoDevelop.Debugger" version="4.0"/>
-		<Addin id="MonoDevelop.D" version="1.0"/>
+		<Addin id="MonoDevelop.Core" version="5.0"/>
+		<Addin id="MonoDevelop.Ide" version="5.0"/>
+		<Addin id="MonoDevelop.Debugger" version="5.0"/>
+		<Addin id="MonoDevelop.D" version="2.0"/>
 	</Dependencies>
 	
 	<Extension path="/MonoDevelop/Debugging/DebuggerEngines">
