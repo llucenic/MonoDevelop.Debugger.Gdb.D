@@ -42,34 +42,24 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="MonoDevelop.Ide">
-      <HintPath>ext\MonoDevelop.Ide.dll</HintPath>
+      <HintPath>ext\Mono-D\ext\MonoDevelop.Ide.dll</HintPath>
       <Private>False</Private>
-    </Reference>
-    <Reference Include="MonoDevelop.D">
-      <HintPath>ext\MonoDevelop.D.dll</HintPath>
-      <Private>False</Private>
-      <!--HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\MonoDevelop.D.dll</HintPath-->
     </Reference>
     <Reference Include="ICSharpCode.NRefactory">
-      <HintPath>ext\ICSharpCode.NRefactory.dll</HintPath>
+      <HintPath>ext\Mono-D\ext\ICSharpCode.NRefactory.dll</HintPath>
       <!--HintPath>..\monodevelop\main\build\bin\ICSharpCode.NRefactory.dll</HintPath-->
       <Private>False</Private>
     </Reference>
-    <Reference Include="D_Parser">
-      <HintPath>ext\D_Parser.dll</HintPath>
-      <Private>False</Private>
-      <!--HintPath>..\Mono-D\MonoDevelop.DBinding\bin\Debug\D_Parser.dll</HintPath-->
-    </Reference>
     <Reference Include="Mono.Debugging">
-      <HintPath>ext\Mono.Debugging.dll</HintPath>
+      <HintPath>ext\Mono-D\ext\Mono.Debugging.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="MonoDevelop.Core">
-      <HintPath>ext\MonoDevelop.Core.dll</HintPath>
+      <HintPath>ext\Mono-D\ext\MonoDevelop.Core.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="MonoDevelop.Debugger">
-      <HintPath>ext\MonoDevelop.Debugger.dll</HintPath>
+      <HintPath>ext\Mono-D\ext\MonoDevelop.Debugger.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="gtk-sharp, Version=2.12.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
@@ -138,12 +128,20 @@
       </Properties>
     </MonoDevelop>
   </ProjectExtensions>
-  <ItemGroup>
-    <Folder Include="Gdb\" />
-    <Folder Include="Gdb.D\" />
-    <Folder Include="Options\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <None Include="features.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="ext\Mono-D\MonoDevelop.DBinding\MonoDevelop.D.csproj">
+      <Project>{5867254f-6b1c-4a4c-bf98-c283740a0470}</Project>
+      <Name>MonoDevelop.D</Name>
+      <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="ext\Mono-D\Parser\DParser2\DParser2.csproj">
+      <Project>{0290a229-9aa1-41c3-b525-cafb86d8bc42}</Project>
+      <Name>DParser2</Name>
+      <Private>False</Private>
+    </ProjectReference>
   </ItemGroup>
 </Project>
