@@ -33,6 +33,8 @@ using MonoDevelop.Ide.Gui;
 using MonoDevelop.Debugger.Gdb;
 using D_Parser.Misc.Mangling;
 using System.Text.RegularExpressions;
+using MonoDevelop.D.Debugging;
+using D_Parser.Resolver;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -40,12 +42,13 @@ namespace MonoDevelop.Debugger.Gdb.D
 	/// <summary>
 	/// High-level component that handles gathering variables and their individual values.
 	/// </summary>
-	class DGdbBacktrace : GdbBacktrace
+	class DGdbBacktrace : GdbBacktrace, IDBacktraceHelpers, IActiveExamination
 	{
 		#region Properties
 		List<string>[] VariableNameCache;
 		List<string>[] ParameterNameCache;
 		public int CurrentFrameIndex;
+		public readonly DLocalExamBacktrace BacktraceHelper;
 		public readonly VariableValueExamination Variables;
 
 		public DGdbSession DSession {
@@ -57,6 +60,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public DGdbBacktrace (GdbSession session, long threadId, int count, ResultData firstFrame)
 			: base(session, threadId, count, firstFrame)
 		{
+			BacktraceHelper = new DLocalExamBacktrace(this);
 			Variables = new VariableValueExamination (this);
 			DebuggingService.CurrentFrameChanged += FrameChanged;
 		}
@@ -120,6 +124,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 		bool isCallingCreateVarObjectImplicitly = false;
 		public override ObjectValue[] GetParameters (int frameIndex, EvaluationOptions options)
 		{
+			session.SelectThread(threadId);
+			return BacktraceHelper.GetParameters(frameIndex, options);
+			/*
 			isCallingCreateVarObjectImplicitly = true;
 			if(CurrentFrameIndex != frameIndex)
 				Variables.NeedsResolutionContextUpdate = true;
@@ -136,11 +143,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 
 			isCallingCreateVarObjectImplicitly = false;
-			return r;
+			return r;*/
 		}
 
 		public override ObjectValue[] GetLocalVariables (int frameIndex, EvaluationOptions options)
 		{
+			session.SelectThread(threadId);
+			return BacktraceHelper.GetLocals(frameIndex, options);
+			/*
 			isCallingCreateVarObjectImplicitly = true;
 			var r = base.GetLocalVariables (frameIndex, options);
 
@@ -153,13 +163,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 			}
 
 			isCallingCreateVarObjectImplicitly = false;
-			return r;
+			return r;*/
 		}
 
 		protected override ObjectValue CreateVarObject(string exp)
 		{
 			session.SelectThread(threadId);
-
+			return BacktraceHelper.CreateObjectValue(EvalSymbol(exp));
+			/*
 			if (DebuggingService.CurrentFrameIndex != CurrentFrameIndex) {
 				CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
 				Variables.NeedsResolutionContextUpdate = true;
@@ -173,7 +184,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 					return ObjectValue.CreateUnknown(exp);
 			}
 
-			return Variables.EvaluateVariable (exp);
+			return Variables.EvaluateVariable (exp);*/
 		}
 
 		/// <summary>
@@ -187,6 +198,136 @@ namespace MonoDevelop.Debugger.Gdb.D
 			//return new RawValueString(new DGdbRawValueString("N/A"));
 		}
 		#endregion
+
+		public void SelectStackFrame(int frameIndex)
+		{
+			SelectFrame(frameIndex);
+		}
+
+		public void GetStackFrameInfo(int frameIndex, out string file, out ulong offset, out D_Parser.Dom.CodeLocation sourceLocation)
+		{
+			var sf = GetStackFrames(frameIndex, frameIndex);
+			if (sf == null || sf.Length < 1)
+				throw new InvalidOperationException("Couldn't get stackframe info");
+
+			var frame = sf[0];
+			file = frame.SourceLocation.FileName;
+			offset = (ulong)frame.Address;
+			sourceLocation = new D_Parser.Dom.CodeLocation(frame.SourceLocation.Column, frame.SourceLocation.Line);
+		}
+
+		class GdbBacktraceSymbol : IDBacktraceSymbol
+		{
+			public ulong Offset	{ get;set; }
+			public string Name { get; set; }
+			public string TypeName { get; set; }
+			public string Value { get; set; }
+			public string FileName { get; set; }
+			public bool HasParent { get; set; }
+			public IDBacktraceSymbol Parent { get; set; }
+			public int ChildCount { get; set; }
+			public IEnumerable<IDBacktraceSymbol> Children { get; set; }
+		}
+
+		GdbBacktraceSymbol EvalSymbol(string exp)
+		{
+			var s = new GdbBacktraceSymbol { Name = exp };
+
+
+			return s;
+		}
+
+		public IEnumerable<IDBacktraceSymbol> Parameters
+		{
+			get {
+				// the '2' lets gdb emit names, values and types
+				GdbCommandResult res = session.RunCommand("-stack-list-arguments", "2", currentFrame.ToString(), currentFrame.ToString());
+				foreach (ResultData data in res.GetObject("stack-args").GetObject(0).GetObject("frame").GetObject("args"))
+				{
+					yield return new GdbBacktraceSymbol { Name = data.GetValueString("name"), Value = data.GetValueString("value") };
+					//values.Add(CreateVarObject(data.GetValueString("name")));
+				}
+			}
+		}
+
+		public IEnumerable<IDBacktraceSymbol> Locals
+		{
+			get { throw new NotImplementedException(); }
+		}
+
+		public int PointerSize
+		{
+			get { return DSession.PointerSize; }
+		}
+
+		public byte[] ReadBytes(ulong offset, ulong size)
+		{
+			byte[] r;
+			DSession.Memory.Read(offset.ToString(), (int)size, out r);
+			return r;
+		}
+
+		public byte ReadByte(ulong offset)
+		{
+			byte[] r;
+			DSession.Memory.Read(offset.ToString(), 1, out r);
+			return r[0];
+		}
+
+		public short ReadInt16(ulong offset)
+		{
+			byte[] r;
+			DSession.Memory.Read(offset.ToString(), 2, out r);
+			return BitConverter.ToInt16(r, 0);
+		}
+
+		public int ReadInt32(ulong offset)
+		{
+			byte[] r;
+			DSession.Memory.Read(offset.ToString(), 4, out r);
+			return BitConverter.ToInt32(r, 0);
+		}
+
+		public long ReadInt64(ulong offset)
+		{
+			byte[] r;
+			DSession.Memory.Read(offset.ToString(), 8, out r);
+			return BitConverter.ToInt64(r, 0);
+		}
+
+		public ResolutionContext LocalsResolutionHelperContext
+		{
+			get { throw new NotImplementedException(); }
+		}
+
+
+
+
+
+		public IActiveExamination ActiveExamination
+		{
+			get { return this; }
+		}
+
+		public ulong Allocate(int size)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void Free(ulong offset, int size)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void Write(ulong offset, byte[] data)
+		{
+			throw new NotImplementedException();
+		}
+
+		public void Execute(ulong offset)
+		{
+			throw new NotImplementedException();
+		}
 	}
 
 	class DGdbDissassemblyBuffer : GdbDissassemblyBuffer
