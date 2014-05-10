@@ -35,6 +35,7 @@ using D_Parser.Misc.Mangling;
 using System.Text.RegularExpressions;
 using MonoDevelop.D.Debugging;
 using D_Parser.Resolver;
+using MonoDevelop.D.Projects;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -45,11 +46,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 	class DGdbBacktrace : GdbBacktrace, IDBacktraceHelpers, IActiveExamination
 	{
 		#region Properties
+		/*
 		List<string>[] VariableNameCache;
-		List<string>[] ParameterNameCache;
+		List<string>[] ParameterNameCache;*/
 		public int CurrentFrameIndex;
 		public readonly DLocalExamBacktrace BacktraceHelper;
-		public readonly VariableValueExamination Variables;
+		//public readonly VariableValueExamination Variables;
 
 		public DGdbSession DSession {
 			get { return session as DGdbSession; }
@@ -61,26 +63,26 @@ namespace MonoDevelop.Debugger.Gdb.D
 			: base(session, threadId, count, firstFrame)
 		{
 			BacktraceHelper = new DLocalExamBacktrace(this);
-			Variables = new VariableValueExamination (this);
-			DebuggingService.CurrentFrameChanged += FrameChanged;
+			//Variables = new VariableValueExamination (this);
+			//DebuggingService.CurrentFrameChanged += FrameChanged;
 		}
 
 		#endregion
 
 		#region Stack frames
-		public override StackFrame[] GetStackFrames (int firstIndex, int lastIndex)
+		/*public override StackFrame[] GetStackFrames (int firstIndex, int lastIndex)
 		{
 			var frames =  base.GetStackFrames (firstIndex, lastIndex);
 			VariableNameCache = new List<string>[frames.Length];
 			ParameterNameCache = new List<string>[frames.Length];
 			return frames;
-		}
-
+		}*/
+		/*
 		void FrameChanged(Object o, EventArgs ea)
 		{
 			Variables.NeedsResolutionContextUpdate = true;
 			CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
-		}
+		}*/
 
 		static readonly Regex mixinInlineRegex = new Regex("-mixin-(?<line>\\d+)", RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
@@ -121,11 +123,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 		#endregion
 
 		#region Variables
-		bool isCallingCreateVarObjectImplicitly = false;
+		//bool isCallingCreateVarObjectImplicitly = false;
 		public override ObjectValue[] GetParameters (int frameIndex, EvaluationOptions options)
 		{
 			session.SelectThread(threadId);
-			return BacktraceHelper.GetParameters(frameIndex, options);
+			base.SelectFrame (frameIndex);
+			return BacktraceHelper.GetParameters(options);
 			/*
 			isCallingCreateVarObjectImplicitly = true;
 			if(CurrentFrameIndex != frameIndex)
@@ -149,7 +152,8 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public override ObjectValue[] GetLocalVariables (int frameIndex, EvaluationOptions options)
 		{
 			session.SelectThread(threadId);
-			return BacktraceHelper.GetLocals(frameIndex, options);
+			base.SelectFrame (frameIndex);
+			return BacktraceHelper.GetLocals(options);
 			/*
 			isCallingCreateVarObjectImplicitly = true;
 			var r = base.GetLocalVariables (frameIndex, options);
@@ -166,10 +170,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return r;*/
 		}
 
-		protected override ObjectValue CreateVarObject(string exp)
+		protected override ObjectValue CreateVarObject(string exp, EvaluationOptions opt)
 		{
 			session.SelectThread(threadId);
-			return BacktraceHelper.CreateObjectValue(EvalSymbol(exp));
+			return BacktraceHelper.CreateObjectValue(exp, opt);
 			/*
 			if (DebuggingService.CurrentFrameIndex != CurrentFrameIndex) {
 				CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
@@ -199,14 +203,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 		}
 		#endregion
 
-		public void SelectStackFrame(int frameIndex)
+		public void GetCurrentStackFrameInfo(out string file, out ulong offset, out D_Parser.Dom.CodeLocation sourceLocation)
 		{
-			SelectFrame(frameIndex);
-		}
-
-		public void GetStackFrameInfo(int frameIndex, out string file, out ulong offset, out D_Parser.Dom.CodeLocation sourceLocation)
-		{
-			var sf = GetStackFrames(frameIndex, frameIndex);
+			var sf = GetStackFrames(CurrentFrameIndex, CurrentFrameIndex);
 			if (sf == null || sf.Length < 1)
 				throw new InvalidOperationException("Couldn't get stackframe info");
 
@@ -218,6 +217,10 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		class GdbBacktraceSymbol : IDBacktraceSymbol
 		{
+			#region Properties
+			public readonly DGdbSession session;
+			public readonly string rawExpression;
+
 			public ulong Offset	{ get;set; }
 			public string Name { get; set; }
 			public string TypeName { get; set; }
@@ -227,24 +230,38 @@ namespace MonoDevelop.Debugger.Gdb.D
 			public IDBacktraceSymbol Parent { get; set; }
 			public int ChildCount { get; set; }
 			public IEnumerable<IDBacktraceSymbol> Children { get; set; }
-		}
+			#endregion
 
-		GdbBacktraceSymbol EvalSymbol(string exp)
-		{
-			var s = new GdbBacktraceSymbol { Name = exp };
+			public GdbBacktraceSymbol(DGdbSession s, string rawExpression)
+			{
+				this.rawExpression = rawExpression;
+				this.session = s;
+			}
+
+			public GdbBacktraceSymbol(DGdbSession s, string name, string value = null, string rawExpression = null)
+			{
+				this.session = s;
+				Name = name;
+				Value = value;
+				this.rawExpression = rawExpression ?? name;
+			}
+
+			void TryEvalSymbolInfo()
+			{
+
+			}
 
 
-			return s;
 		}
 
 		public IEnumerable<IDBacktraceSymbol> Parameters
 		{
 			get {
 				// the '2' lets gdb emit names, values and types
-				GdbCommandResult res = session.RunCommand("-stack-list-arguments", "2", currentFrame.ToString(), currentFrame.ToString());
+				var res = session.RunCommand("-stack-list-arguments", "2", currentFrame.ToString(), currentFrame.ToString());
 				foreach (ResultData data in res.GetObject("stack-args").GetObject(0).GetObject("frame").GetObject("args"))
 				{
-					yield return new GdbBacktraceSymbol { Name = data.GetValueString("name"), Value = data.GetValueString("value") };
+					yield return new GdbBacktraceSymbol(session as DGdbSession, data.GetValueString("name"), data.GetValueString("value")) { TypeName = data.GetValueString("type") };
 					//values.Add(CreateVarObject(data.GetValueString("name")));
 				}
 			}
@@ -252,7 +269,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public IEnumerable<IDBacktraceSymbol> Locals
 		{
-			get { throw new NotImplementedException(); }
+			get { 
+				var res = session.RunCommand ("-stack-list-locals", "2", "--skip-unavailable");
+				foreach (ResultData data in res.GetObject ("locals")) {
+					yield return new GdbBacktraceSymbol (session as DGdbSession, data.GetValueString("name"), data.GetValueString("value")) { TypeName = data.GetValueString("type") };
+				}
+			}
 		}
 
 		public int PointerSize
@@ -297,7 +319,14 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public ResolutionContext LocalsResolutionHelperContext
 		{
-			get { throw new NotImplementedException(); }
+			get {
+				var doc = Ide.IdeApp.Workbench.GetDocument (BacktraceHelper.currentStackFrameSource);
+
+				if (doc == null)
+					return null;
+					
+				return ResolutionContext.Create (MonoDevelop.D.Resolver.DResolverWrapper.CreateEditorData (doc), false);
+			}
 		}
 
 

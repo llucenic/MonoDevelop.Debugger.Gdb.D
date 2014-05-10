@@ -1,6 +1,3 @@
-[submodule "Mono-D"]
-	path = ext/Mono-D
-	url = https://github.com/aBothe/Mono-D.git
 [submodule "ext/Mono-D"]
 	path = ext/Mono-D
 	url = https://github.com/aBothe/Mono-D.git

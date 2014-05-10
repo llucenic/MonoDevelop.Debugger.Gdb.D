@@ -89,7 +89,7 @@ namespace MonoDevelop.Debugger.Gdb
 			
 			GdbCommandResult res = session.RunCommand ("-stack-list-locals", "0");
 			foreach (ResultData data in res.GetObject ("locals"))
-				values.Add (CreateVarObject (data.GetValueString ("name")));
+				values.Add (CreateVarObject (data.GetValueString ("name"), options));
 			
 			return values.ToArray ();
 		}
@@ -100,7 +100,7 @@ namespace MonoDevelop.Debugger.Gdb
 			SelectFrame (frameIndex);
 			GdbCommandResult res = session.RunCommand ("-stack-list-arguments", "0", frameIndex.ToString (), frameIndex.ToString ());
 			foreach (ResultData data in res.GetObject ("stack-args").GetObject (0).GetObject ("frame").GetObject ("args"))
-				values.Add (CreateVarObject (data.GetValueString ("name")));
+				values.Add (CreateVarObject (data.GetValueString ("name"), options));
 			
 			return values.ToArray ();
 		}
@@ -123,7 +123,7 @@ namespace MonoDevelop.Debugger.Gdb
 			List<ObjectValue> values = new List<ObjectValue> ();
 			SelectFrame (frameIndex);
 			foreach (string exp in expressions)
-				values.Add (CreateVarObject (exp));
+				values.Add (CreateVarObject (exp, options));
 			return values.ToArray ();
 		}
 		
@@ -148,7 +148,7 @@ namespace MonoDevelop.Debugger.Gdb
 				exp = exp.Substring (0, exp.Length - (pointer ? 2 : 1));
 				i = 0;
 				while (i < exp.Length) {
-					ObjectValue val = CreateVarObject (exp);
+					ObjectValue val = CreateVarObject (exp, session.EvaluationOptions);
 					if (!val.IsUnknown && !val.IsError) {
 						CompletionData data = new CompletionData ();
 						foreach (ObjectValue cv in val.GetAllChildren ())
@@ -201,7 +201,7 @@ namespace MonoDevelop.Debugger.Gdb
 		}
 
 		
-		protected virtual ObjectValue CreateVarObject (string exp)
+		protected virtual ObjectValue CreateVarObject (string exp, EvaluationOptions options)
 		{
 			try {
 				session.SelectThread (threadId);
