@@ -251,7 +251,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			}
 
-
+			public AbstractType DType { get { return null; } }
 		}
 
 		public IEnumerable<IDBacktraceSymbol> Parameters
@@ -315,18 +315,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 			byte[] r;
 			DSession.Memory.Read(offset.ToString(), 8, out r);
 			return BitConverter.ToInt64(r, 0);
-		}
-
-		public ResolutionContext LocalsResolutionHelperContext
-		{
-			get {
-				var doc = Ide.IdeApp.Workbench.GetDocument (BacktraceHelper.currentStackFrameSource);
-
-				if (doc == null)
-					return null;
-					
-				return ResolutionContext.Create (MonoDevelop.D.Resolver.DResolverWrapper.CreateEditorData (doc), false);
-			}
 		}
 
 
