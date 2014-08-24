@@ -36,6 +36,7 @@ using System.Text.RegularExpressions;
 using MonoDevelop.D.Debugging;
 using D_Parser.Resolver;
 using MonoDevelop.D.Projects;
+using System.Text;
 
 
 namespace MonoDevelop.Debugger.Gdb.D
@@ -126,27 +127,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 		//bool isCallingCreateVarObjectImplicitly = false;
 		public override ObjectValue[] GetParameters (int frameIndex, EvaluationOptions options)
 		{
+			BacktraceHelper.Reset ();
+
 			session.SelectThread(threadId);
 			base.SelectFrame (frameIndex);
 			return BacktraceHelper.GetParameters(options);
-			/*
-			isCallingCreateVarObjectImplicitly = true;
-			if(CurrentFrameIndex != frameIndex)
-				Variables.NeedsResolutionContextUpdate = true;
-			CurrentFrameIndex = frameIndex;
-
-			var r = base.GetParameters (frameIndex, options);
-
-			if(ParameterNameCache[frameIndex] == null)
-			{
-				var nameCache = new List<string>();
-				foreach(var p in r)
-					nameCache.Add(p.Name);
-				ParameterNameCache[frameIndex] = nameCache;
-			}
-
-			isCallingCreateVarObjectImplicitly = false;
-			return r;*/
 		}
 
 		public override ObjectValue[] GetLocalVariables (int frameIndex, EvaluationOptions options)
@@ -154,46 +139,21 @@ namespace MonoDevelop.Debugger.Gdb.D
 			session.SelectThread(threadId);
 			base.SelectFrame (frameIndex);
 			return BacktraceHelper.GetLocals(options);
-			/*
-			isCallingCreateVarObjectImplicitly = true;
-			var r = base.GetLocalVariables (frameIndex, options);
-
-			if(VariableNameCache[frameIndex] == null)
-			{
-				var nameCache = new List<string>();
-				foreach(var p in r)
-					nameCache.Add(p.Name);
-				VariableNameCache[frameIndex] = nameCache;
-			}
-
-			isCallingCreateVarObjectImplicitly = false;
-			return r;*/
 		}
 
 		public IDBacktraceSymbol FindSymbol(string s)
 		{
-			return null;
+			var res = session.RunCommand("-data-evaluate-expression", s);
+			if (res.Status != CommandStatus.Done)
+				return null;
+
+			return ConstructBacktraceSymbol (s, res.GetValueString ("value"), s);
 		}
 
 		protected override ObjectValue CreateVarObject(string exp, EvaluationOptions opt)
 		{
 			session.SelectThread(threadId);
 			return BacktraceHelper.CreateObjectValue(exp, opt);
-			/*
-			if (DebuggingService.CurrentFrameIndex != CurrentFrameIndex) {
-				CurrentFrameIndex = DebuggingService.CurrentFrameIndex;
-				Variables.NeedsResolutionContextUpdate = true;
-			}
-
-			if (!isCallingCreateVarObjectImplicitly) {
-				var nameCache = ParameterNameCache [CurrentFrameIndex];
-				if (nameCache != null && !nameCache.Contains (exp) &&
-				    (VariableNameCache[CurrentFrameIndex] == null ||
-					!VariableNameCache [CurrentFrameIndex].Contains (exp)))
-					return ObjectValue.CreateUnknown(exp);
-			}
-
-			return Variables.EvaluateVariable (exp);*/
 		}
 
 		/// <summary>
@@ -202,9 +162,6 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public override object GetRawValue (ObjectPath path, EvaluationOptions options)
 		{
 			return null;
-			// GdbCommandResult res = DSession.RunCommand("-var-evaluate-expression", path.ToString());
-				
-			//return new RawValueString(new DGdbRawValueString("N/A"));
 		}
 		#endregion
 
@@ -220,6 +177,57 @@ namespace MonoDevelop.Debugger.Gdb.D
 			sourceLocation = new D_Parser.Dom.CodeLocation(frame.SourceLocation.Column, frame.SourceLocation.Line);
 		}
 
+		private static Regex hexNum = new Regex(
+			@"^\s*0x(?<o>[0-9a-fA-F]+?)\s*$",
+			RegexOptions.Compiled | RegexOptions.ExplicitCapture | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+		private static Regex arrayValue = new Regex(
+			@"\{((length\s*=\s*(?<len>\d+?))|\s*\,\s*|(ptr\s*=\s*0x(?<ptr>[0-9a-fA-F]+?)( .*)?))+\}",
+			RegexOptions.Compiled | RegexOptions.ExplicitCapture | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+		static decimal ParseHexValue(string v)
+		{
+			if (string.IsNullOrWhiteSpace (v))
+				return 0;
+
+			var sb = new StringBuilder (v);
+			return D_Parser.Parser.Lexer.ParseFloatValue (sb, 16);
+		}
+
+		GdbBacktraceSymbol ConstructBacktraceSymbol(string name, string value, string rawExpression = null)
+		{
+			Match m;
+			if (rawExpression == null)
+				rawExpression = name;
+
+			if (value != null && 
+				((m = arrayValue.Match (value)).Success)) {
+				var arrSymb = new GdbBacktraceArraySymbol (DSession, rawExpression) {
+					Name = name,
+					ArrayLength = int.Parse(m.Groups["len"].Value), 
+					FirstElementOffset = (ulong)ParseHexValue(m.Groups["ptr"].Value) };
+
+				return arrSymb;
+			}
+
+			var sym = new GdbBacktraceSymbol (DSession, name, value, rawExpression);
+
+			if (value != null && (m = hexNum.Match (value)).Success)
+				sym.Offset = (ulong)ParseHexValue (m.Groups ["o"].Value);
+
+			return sym;
+		}
+
+		class GdbBacktraceArraySymbol : GdbBacktraceSymbol, IDBacktraceArraySymbol
+		{
+			public ulong FirstElementOffset	{ get;set; }
+			public int ArrayLength	{ get;set; }
+
+			public GdbBacktraceArraySymbol(DGdbSession s, string rawExpression) : base(s, rawExpression)
+			{
+
+			}
+		}
+
 		class GdbBacktraceSymbol : IDBacktraceSymbol
 		{
 			#region Properties
@@ -229,6 +237,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			public ulong Offset	{ get;set; }
 			public string Name { get; set; }
 			public string TypeName { get; set; }
+
 			public string Value { get; set; }
 			public string FileName { get; set; }
 			public bool HasParent { get; set; }
@@ -256,18 +265,27 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			}
 
-			public AbstractType DType { get { return null; } }
+			void TryGetType()
+			{
+				if (ty != null)
+					return;
+
+				if (!HasParent) {
+					//var res = session.RunCommand ("ptype", Name);
+				}
+			}
+
+			AbstractType ty;
+			public AbstractType DType { get { TryGetType (); return ty; } }
 		}
 
 		public IEnumerable<IDBacktraceSymbol> Parameters
 		{
 			get {
-				// the '2' lets gdb emit names, values and types
-				var res = session.RunCommand("-stack-list-arguments", "2", currentFrame.ToString(), currentFrame.ToString());
+				var res = session.RunCommand("-stack-list-arguments", "1", currentFrame.ToString(), currentFrame.ToString());
 				foreach (ResultData data in res.GetObject("stack-args").GetObject(0).GetObject("frame").GetObject("args"))
 				{
-					yield return new GdbBacktraceSymbol(session as DGdbSession, data.GetValueString("name"), data.GetValueString("value")) { TypeName = data.GetValueString("type") };
-					//values.Add(CreateVarObject(data.GetValueString("name")));
+					yield return ConstructBacktraceSymbol (data.GetValueString("name"), data.GetValueString("value"));
 				}
 			}
 		}
@@ -275,9 +293,9 @@ namespace MonoDevelop.Debugger.Gdb.D
 		public IEnumerable<IDBacktraceSymbol> Locals
 		{
 			get { 
-				var res = session.RunCommand ("-stack-list-locals", "2", "--skip-unavailable");
+				var res = session.RunCommand ("-stack-list-locals", "--skip-unavailable", "1");
 				foreach (ResultData data in res.GetObject ("locals")) {
-					yield return new GdbBacktraceSymbol (session as DGdbSession, data.GetValueString("name"), data.GetValueString("value")) { TypeName = data.GetValueString("type") };
+					yield return ConstructBacktraceSymbol (data.GetValueString("name"), data.GetValueString("value"));
 				}
 			}
 		}
@@ -328,7 +346,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public IActiveExamination ActiveExamination
 		{
-			get { return this; }
+			get { return null; }
 		}
 
 		public ulong Allocate(int size)
