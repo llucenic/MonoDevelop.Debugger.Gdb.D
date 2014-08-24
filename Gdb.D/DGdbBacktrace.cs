@@ -170,6 +170,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 			return r;*/
 		}
 
+		public IDBacktraceSymbol FindSymbol(string s)
+		{
+			return null;
+		}
+
 		protected override ObjectValue CreateVarObject(string exp, EvaluationOptions opt)
 		{
 			session.SelectThread(threadId);
