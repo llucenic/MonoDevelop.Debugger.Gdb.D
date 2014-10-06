@@ -143,11 +143,12 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 		public IDBacktraceSymbol FindSymbol(string s)
 		{
-			var res = session.RunCommand("-data-evaluate-expression", s);
+			var arg = "&("+s+")";
+			var res = session.RunCommand("-data-evaluate-expression", arg);
 			if (res.Status != CommandStatus.Done)
 				return null;
 
-			return ConstructBacktraceSymbol (s, res.GetValueString ("value"), s);
+			return ConstructBacktraceSymbol (s, res.GetValueString ("value"), arg);
 		}
 
 		protected override ObjectValue CreateVarObject(string exp, EvaluationOptions opt)
@@ -239,7 +240,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			public GdbBacktraceArraySymbol(DGdbSession s, string rawExpression) : base(s, rawExpression)
 			{
-
+				Value = "";
 			}
 		}
 
