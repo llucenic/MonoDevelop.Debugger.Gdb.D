@@ -173,7 +173,7 @@ namespace MonoDevelop.Debugger.Gdb.D
 			// by injecting D code directly into debugged D program loaded into GDB
 
 			// The method header (note: int is 32 bit on all cpu architectures; The pointers can be 64 bit though):
-			// void toStr(Object o, char** firstChar, int* length, bool* isException)
+			// void toStr(Object o, char* firstChar, int* length, bool* isException)
 
 			// step 1: reserve three pointers for
 			//	a) a pointer to (i.e. address of) the actual returned string - *$ptr

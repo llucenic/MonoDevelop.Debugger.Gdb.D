@@ -1,123 +1,143 @@
 
-This code was extracted via objdump -S -d bin/Debug/toStringdisas > dump.txt
+The code was compiled via dmd -g main
+This code was extracted via objdump -S -d main > dump.txt
 Only lines that contain the absolute address and assembler instructions will be taken
 
 extern(C) export uint toStr(Object o, char* buffer, uint bufferLength, bool* isException)
-  4028ac:	55                   	push   %rbp
-  4028ad:	48 8b ec             	mov    %rsp,%rbp
-  4028b0:	48 83 ec 58          	sub    $0x58,%rsp
-  4028b4:	53                   	push   %rbx
-  4028b5:	41 54                	push   %r12
-  4028b7:	41 55                	push   %r13
-  4028b9:	41 56                	push   %r14
-  4028bb:	41 57                	push   %r15
-  4028bd:	48 89 7d e0          	mov    %rdi,-0x20(%rbp)
-  4028c1:	48 89 75 e8          	mov    %rsi,-0x18(%rbp)
-  4028c5:	89 55 f0             	mov    %edx,-0x10(%rbp)
-  4028c8:	48 89 4d f8          	mov    %rcx,-0x8(%rbp)
 {
-	if(o is null || buffer is null || bufferLength <= 0 || isException is null)
-  4028cc:	48 83 7d e0 00       	cmpq   $0x0,-0x20(%rbp)
-  4028d1:	74 14                	je     4028e7 <toStr+0x3b>
-  4028d3:	48 83 7d e8 00       	cmpq   $0x0,-0x18(%rbp)
-  4028d8:	74 0d                	je     4028e7 <toStr+0x3b>
-  4028da:	83 7d f0 00          	cmpl   $0x0,-0x10(%rbp)
-  4028de:	74 07                	je     4028e7 <toStr+0x3b>
-  4028e0:	48 83 7d f8 00       	cmpq   $0x0,-0x8(%rbp)
-  4028e5:	75 0d                	jne    4028f4 <toStr+0x48>
+	if(o is null || buffer is null || bufferLength < 1 || isException is null)
 		return 0;
-  4028e7:	31 c0                	xor    %eax,%eax
-  4028e9:	41 5f                	pop    %r15
-  4028eb:	41 5e                	pop    %r14
-  4028ed:	41 5d                	pop    %r13
-  4028ef:	41 5c                	pop    %r12
-  4028f1:	5b                   	pop    %rbx
-  4028f2:	c9                   	leaveq 
-  4028f3:	c3                   	retq   
-
+	
 	string s;
-  4028f4:	48 c7 45 b0 00 00 00 	movq   $0x0,-0x50(%rbp)
-  4028fb:	00 
-  4028fc:	48 c7 45 b8 00 00 00 	movq   $0x0,-0x48(%rbp)
-  402903:	00 
 	try{
 		s = o.toString();
-  402904:	48 8b 7d e0          	mov    -0x20(%rbp),%rdi
-  402908:	48 8b 0f             	mov    (%rdi),%rcx
-  40290b:	48 ff 51 08          	rex.W callq *0x8(%rcx)
-  40290f:	48 89 45 b0          	mov    %rax,-0x50(%rbp)
-  402913:	48 89 55 b8          	mov    %rdx,-0x48(%rbp)
 		*isException = false;
-  402917:	48 8b 55 f8          	mov    -0x8(%rbp),%rdx
-  40291b:	c6 02 00             	movb   $0x0,(%rdx)
-  40291e:	eb 1b                	jmp    40293b <toStr+0x8f>
 	}
-	catch(Exception ex)
+	catch(Exception e)
 	{
-		*isException=true;
-  402920:	48 8b 5d f8          	mov    -0x8(%rbp),%rbx
-  402924:	c6 03 01             	movb   $0x1,(%rbx)
-		s = ex.msg;
-  402927:	48 8b 45 c0          	mov    -0x40(%rbp),%rax
-  40292b:	48 8b 50 18          	mov    0x18(%rax),%rdx
-  40292f:	48 8b 40 10          	mov    0x10(%rax),%rax
-  402933:	48 89 45 b0          	mov    %rax,-0x50(%rbp)
-  402937:	48 89 55 b8          	mov    %rdx,-0x48(%rbp)
+		s = e.msg;
+		*isException = true;
 	}
-
+	
 	if(s is null)
-  40293b:	48 8b 4d b8          	mov    -0x48(%rbp),%rcx
-  40293f:	48 0b 4d b0          	or     -0x50(%rbp),%rcx
-  402943:	75 0d                	jne    402952 <toStr+0xa6>
 		return 0;
-  402945:	31 c0                	xor    %eax,%eax
-  402947:	41 5f                	pop    %r15
-  402949:	41 5e                	pop    %r14
-  40294b:	41 5d                	pop    %r13
-  40294d:	41 5c                	pop    %r12
-  40294f:	5b                   	pop    %rbx
-  402950:	c9                   	leaveq 
-  402951:	c3                   	retq   
-
+	
 	if(bufferLength > s.length)
-  402952:	8b 5d f0             	mov    -0x10(%rbp),%ebx
-  402955:	48 3b 5d b0          	cmp    -0x50(%rbp),%rbx
-  402959:	76 06                	jbe    402961 <toStr+0xb5>
 		bufferLength = cast(uint)s.length;
-  40295b:	8b 75 b0             	mov    -0x50(%rbp),%esi
-  40295e:	89 75 f0             	mov    %esi,-0x10(%rbp)
-
-	for(auto i=bufferLength; i>0;)
-  402961:	8b 55 f0             	mov    -0x10(%rbp),%edx
-  402964:	89 55 c8             	mov    %edx,-0x38(%rbp)
-  402967:	83 7d c8 00          	cmpl   $0x0,-0x38(%rbp)
-  40296b:	74 39                	je     4029a6 <toStr+0xfa>
-		buffer[i] = s[--i];
-  40296d:	ff 4d c8             	decl   -0x38(%rbp)
-  402970:	8b 4d c8             	mov    -0x38(%rbp),%ecx
-  402973:	89 c9                	mov    %ecx,%ecx
-  402975:	48 89 4d d0          	mov    %rcx,-0x30(%rbp)
-  402979:	48 3b 4d b0          	cmp    -0x50(%rbp),%rcx
-  40297d:	72 0a                	jb     402989 <toStr+0xdd>
-  40297f:	bf 23 00 00 00       	mov    $0x23,%edi
-  402984:	e8 a3 84 00 00       	callq  40ae2c <_D13toStringdisas7__arrayZ>
-  402989:	48 8b 55 b8          	mov    -0x48(%rbp),%rdx
-  40298d:	48 8b 45 b0          	mov    -0x50(%rbp),%rax
-  402991:	48 8b 5d d0          	mov    -0x30(%rbp),%rbx
-  402995:	40 8a 34 1a          	mov    (%rdx,%rbx,1),%sil
-  402999:	8b 4d c8             	mov    -0x38(%rbp),%ecx
-  40299c:	48 8b 7d e8          	mov    -0x18(%rbp),%rdi
-  4029a0:	40 88 34 39          	mov    %sil,(%rcx,%rdi,1)
-  4029a4:	eb c1                	jmp    402967 <toStr+0xbb>
-
+	
+	for(auto i=bufferLength-1; i>=0;i--)
+		buffer[i] = s[i];
+	
 	return bufferLength;
-  4029a6:	8b 45 f0             	mov    -0x10(%rbp),%eax
 }
-  4029a9:	41 5f                	pop    %r15
-  4029ab:	41 5e                	pop    %r14
-  4029ad:	41 5d                	pop    %r13
-  4029af:	41 5c                	pop    %r12
-  4029b1:	5b                   	pop    %rbx
-  4029b2:	c9                   	leaveq 
-  4029b3:	c3                   	retq   
-  
+
+extern(C) export uint toStr(Object o, char* buffer, uint bufferLength, bool* isException)
+  41a1c0:	55                   	push   %rbp
+  41a1c1:	48 8b ec             	mov    %rsp,%rbp
+  41a1c4:	48 83 ec 48          	sub    $0x48,%rsp
+  41a1c8:	53                   	push   %rbx
+  41a1c9:	41 54                	push   %r12
+  41a1cb:	41 55                	push   %r13
+  41a1cd:	41 56                	push   %r14
+  41a1cf:	41 57                	push   %r15
+  41a1d1:	48 89 7d e0          	mov    %rdi,-0x20(%rbp)
+  41a1d5:	48 89 75 e8          	mov    %rsi,-0x18(%rbp)
+  41a1d9:	89 55 f0             	mov    %edx,-0x10(%rbp)
+  41a1dc:	48 89 4d f8          	mov    %rcx,-0x8(%rbp)
+{
+	if(o is null || buffer is null || bufferLength < 1 || isException is null)
+  41a1e0:	48 83 7d e0 00       	cmpq   $0x0,-0x20(%rbp)
+  41a1e5:	74 14                	je     41a1fb <toStr+0x3b>
+  41a1e7:	48 83 7d e8 00       	cmpq   $0x0,-0x18(%rbp)
+  41a1ec:	74 0d                	je     41a1fb <toStr+0x3b>
+  41a1ee:	83 7d f0 01          	cmpl   $0x1,-0x10(%rbp)
+  41a1f2:	72 07                	jb     41a1fb <toStr+0x3b>
+  41a1f4:	48 83 7d f8 00       	cmpq   $0x0,-0x8(%rbp)
+  41a1f9:	75 0d                	jne    41a208 <toStr+0x48>
+		return 0;
+  41a1fb:	31 c0                	xor    %eax,%eax
+  41a1fd:	41 5f                	pop    %r15
+  41a1ff:	41 5e                	pop    %r14
+  41a201:	41 5d                	pop    %r13
+  41a203:	41 5c                	pop    %r12
+  41a205:	5b                   	pop    %rbx
+  41a206:	c9                   	leaveq 
+  41a207:	c3                   	retq   
+	
+	string s;
+  41a208:	48 c7 45 c0 00 00 00 	movq   $0x0,-0x40(%rbp)
+  41a20f:	00 
+  41a210:	48 c7 45 c8 00 00 00 	movq   $0x0,-0x38(%rbp)
+  41a217:	00 
+	try{
+		s = o.toString();
+  41a218:	48 8b 7d e0          	mov    -0x20(%rbp),%rdi
+  41a21c:	48 8b 0f             	mov    (%rdi),%rcx
+  41a21f:	48 ff 51 08          	rex.W callq *0x8(%rcx)
+  41a223:	48 89 45 c0          	mov    %rax,-0x40(%rbp)
+  41a227:	48 89 55 c8          	mov    %rdx,-0x38(%rbp)
+		*isException = false;
+  41a22b:	48 8b 55 f8          	mov    -0x8(%rbp),%rdx
+  41a22f:	c6 02 00             	movb   $0x0,(%rdx)
+  41a232:	eb 1b                	jmp    41a24f <toStr+0x8f>
+	}
+	catch(Exception e)
+	{
+		s = e.msg;
+  41a234:	48 8b 5d d0          	mov    -0x30(%rbp),%rbx
+  41a238:	48 8b 53 18          	mov    0x18(%rbx),%rdx
+  41a23c:	48 8b 43 10          	mov    0x10(%rbx),%rax
+  41a240:	48 89 45 c0          	mov    %rax,-0x40(%rbp)
+  41a244:	48 89 55 c8          	mov    %rdx,-0x38(%rbp)
+		*isException = true;
+  41a248:	48 8b 75 f8          	mov    -0x8(%rbp),%rsi
+  41a24c:	c6 06 01             	movb   $0x1,(%rsi)
+	}
+	
+	if(s is null)
+  41a24f:	48 8b 4d c8          	mov    -0x38(%rbp),%rcx
+  41a253:	48 0b 4d c0          	or     -0x40(%rbp),%rcx
+  41a257:	75 0d                	jne    41a266 <toStr+0xa6>
+		return 0;
+  41a259:	31 c0                	xor    %eax,%eax
+  41a25b:	41 5f                	pop    %r15
+  41a25d:	41 5e                	pop    %r14
+  41a25f:	41 5d                	pop    %r13
+  41a261:	41 5c                	pop    %r12
+  41a263:	5b                   	pop    %rbx
+  41a264:	c9                   	leaveq 
+  41a265:	c3                   	retq   
+	
+	if(bufferLength > s.length)
+  41a266:	8b 5d f0             	mov    -0x10(%rbp),%ebx
+  41a269:	48 39 5d c0          	cmp    %rbx,-0x40(%rbp)
+  41a26d:	73 06                	jae    41a275 <toStr+0xb5>
+		bufferLength = cast(uint)s.length;
+  41a26f:	8b 55 c0             	mov    -0x40(%rbp),%edx
+  41a272:	89 55 f0             	mov    %edx,-0x10(%rbp)
+	
+	for(auto i=bufferLength-1; i>=0;i--)
+  41a275:	8b 75 f0             	mov    -0x10(%rbp),%esi
+  41a278:	ff ce                	dec    %esi
+  41a27a:	89 75 d8             	mov    %esi,-0x28(%rbp)
+		buffer[i] = s[i];
+  41a27d:	8b 4d d8             	mov    -0x28(%rbp),%ecx
+  41a280:	48 3b 4d c0          	cmp    -0x40(%rbp),%rcx
+  41a284:	72 0a                	jb     41a290 <toStr+0xd0>
+  41a286:	bf 1e 00 00 00       	mov    $0x1e,%edi
+  41a28b:	e8 18 00 00 00       	callq  41a2a8 <_D4main7__arrayZ>
+  41a290:	48 8b 55 c8          	mov    -0x38(%rbp),%rdx
+  41a294:	48 8b 45 c0          	mov    -0x40(%rbp),%rax
+  41a298:	8a 1c 0a             	mov    (%rdx,%rcx,1),%bl
+  41a29b:	48 8b 75 e8          	mov    -0x18(%rbp),%rsi
+  41a29f:	88 1c 31             	mov    %bl,(%rcx,%rsi,1)
+		return 0;
+	
+	if(bufferLength > s.length)
+		bufferLength = cast(uint)s.length;
+	
+	for(auto i=bufferLength-1; i>=0;i--)
+  41a2a2:	ff 4d d8             	decl   -0x28(%rbp)
+  41a2a5:	eb d6                	jmp    41a27d <toStr+0xbd>
+  41a2a7:	90                   	nop
+
