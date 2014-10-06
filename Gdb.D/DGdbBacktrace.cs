@@ -184,13 +184,26 @@ namespace MonoDevelop.Debugger.Gdb.D
 			@"\{((length\s*=\s*(?<len>\d+?))|\s*\,\s*|(ptr\s*=\s*0x(?<ptr>[0-9a-fA-F]+?)( .*)?))+\}",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture | RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-		static decimal ParseHexValue(string v)
+		static ulong ParseHexValue(string v)
 		{
-			if (string.IsNullOrWhiteSpace (v))
+			switch (v) {
+			case null:
+			case "":
+			case " ":
+			case "0":
 				return 0;
+			case "ffff":
+				return ushort.MaxValue;
+			case "ffffffff":
+				return uint.MaxValue;
+			case "ffffffffffffffff":
+				return ulong.MaxValue;
+			default:
+				break;
+			}
 
 			var sb = new StringBuilder (v);
-			return D_Parser.Parser.Lexer.ParseFloatValue (sb, 16);
+			return (ulong) D_Parser.Parser.Lexer.ParseFloatValue (sb, 16);
 		}
 
 		GdbBacktraceSymbol ConstructBacktraceSymbol(string name, string value, string rawExpression = null)
@@ -201,9 +214,11 @@ namespace MonoDevelop.Debugger.Gdb.D
 
 			if (value != null && 
 				((m = arrayValue.Match (value)).Success)) {
+				int len;
+				int.TryParse (m.Groups ["len"].Value, out len);
 				var arrSymb = new GdbBacktraceArraySymbol (DSession, rawExpression) {
 					Name = name,
-					ArrayLength = int.Parse(m.Groups["len"].Value), 
+					ArrayLength = len, 
 					FirstElementOffset = (ulong)ParseHexValue(m.Groups["ptr"].Value) };
 
 				return arrSymb;
