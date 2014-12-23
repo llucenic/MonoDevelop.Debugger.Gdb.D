@@ -23,11 +23,22 @@
 // THE SOFTWARE.
 //
 //
+using MonoDevelop.D.Debugging;
 
 namespace MonoDevelop.Debugger.Gdb.D
 {
 	public class DGdbSessionFactory : GdbSessionFactory
 	{
+		public override bool CanDebugCommand (MonoDevelop.Core.Execution.ExecutionCommand cmd)
+		{
+			return cmd is DExecutionCommand && base.CanDebugCommand(cmd);
+		}
+
+		public override bool IsDefaultDebugger (MonoDevelop.Core.Execution.ExecutionCommand cmd)
+		{
+			return cmd is DExecutionCommand;
+		}
+
 		public override Mono.Debugging.Client.DebuggerSession CreateSession ()
 		{
 			return new DGdbSession ();
