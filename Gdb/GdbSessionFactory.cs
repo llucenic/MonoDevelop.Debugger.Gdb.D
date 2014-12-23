@@ -34,7 +34,7 @@ using MonoDevelop.Core.Execution;
 
 namespace MonoDevelop.Debugger.Gdb
 {
-	public class GdbSessionFactory: IDebuggerEngine
+	public class GdbSessionFactory: DebuggerEngineBackend
 	{
 		struct FileData {
 			public DateTime LastCheck;
@@ -43,7 +43,7 @@ namespace MonoDevelop.Debugger.Gdb
 		
 		Dictionary<string,FileData> fileCheckCache = new Dictionary<string, FileData> ();
 		
-		public bool CanDebugCommand (ExecutionCommand command)
+		public override bool CanDebugCommand (ExecutionCommand command)
 		{
 			NativeExecutionCommand cmd = command as NativeExecutionCommand;
 			if (cmd == null)
@@ -76,7 +76,7 @@ namespace MonoDevelop.Debugger.Gdb
 			return data.IsExe;
 		}
 		
-		public DebuggerStartInfo CreateDebuggerStartInfo (ExecutionCommand command)
+		public override DebuggerStartInfo CreateDebuggerStartInfo (ExecutionCommand command)
 		{
 			NativeExecutionCommand pec = (NativeExecutionCommand) command;
 			DebuggerStartInfo startInfo = new DebuggerStartInfo ();
@@ -108,13 +108,13 @@ namespace MonoDevelop.Debugger.Gdb
 			return true;
 		}
 
-		public virtual DebuggerSession CreateSession ()
+		public override DebuggerSession CreateSession ()
 		{
 			GdbSession ds = new GdbSession ();
 			return ds;
 		}
 		
-		public ProcessInfo[] GetAttachableProcesses ()
+		public override ProcessInfo[] GetAttachableProcesses ()
 		{
 			List<ProcessInfo> procs = new List<ProcessInfo> ();
 			foreach (string dir in Directory.GetDirectories ("/proc")) {
