@@ -5,7 +5,7 @@
        description = "D Language debugging support based on GNU Debugger support for GNU/Linux platform."
        copyright   = "MIT X11"
        category = "Debugging"
-       version   = "1.2.10">
+       version   = "2">
 
 	<Dependencies>
 		<Addin id="MonoDevelop.Core" version="5.0"/>
